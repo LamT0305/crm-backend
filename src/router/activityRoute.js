@@ -1,5 +1,4 @@
 import express from "express";
-import authMiddleWare from "../middleware/authMiddleWare.js";
 import {
   createActivity,
   deleteActivity,
@@ -8,8 +7,7 @@ import {
 
 const router = express.Router();
 
-router.use(authMiddleWare);
-router.route("/get-activiries").get(getActivities);
+router.route("/get-activities").get(getActivities);
 router.route("/create-activity").post(createActivity);
 router.route("/delete-activity").delete(deleteActivity);
 

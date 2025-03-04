@@ -1,5 +1,4 @@
 import express from "express";
-import authMiddleWare from "../middleware/authMiddleWare.js";
 import {
   createCustomer,
   deleteCustomer,
@@ -10,7 +9,6 @@ import {
 } from "../controller/CustomerController.js";
 const router = express.Router();
 
-router.use(authMiddleWare);
 router.route("/create-customer").post(createCustomer);
 router.route("/customers").get(getCustomersByUser);
 router.route("/get-customers/:id").get(getCustomerById);

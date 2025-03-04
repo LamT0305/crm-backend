@@ -1,5 +1,4 @@
 import express from "express";
-import authMiddleWare from "../middleware/authMiddleWare.js";
 import {
   createDeal,
   deleteDeal,
@@ -9,7 +8,6 @@ import {
 
 const router = express.Router();
 
-router.use(authMiddleWare);
 
 router.route("/get-deals").get(getDealByUser);
 router.route("/create-deal").post(createDeal);

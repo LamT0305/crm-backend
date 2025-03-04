@@ -1,5 +1,4 @@
 import express from "express";
-import authMiddleWare from "../middleware/authMiddleWare.js";
 import {
   createTask,
   deleteTask,
@@ -10,7 +9,6 @@ import {
 
 const router = express.Router();
 
-router.use(authMiddleWare);
 
 router.route("/create-task").post(createTask);
 router.route("/update-task/:id").post(updateTask);
