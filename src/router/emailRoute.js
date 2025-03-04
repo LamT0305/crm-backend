@@ -1,9 +1,9 @@
 import express from "express";
-import { sendEmail } from "../controller/EmailController.js";
-import { restoreUser } from "../middleware/authMiddleWare.js";
+import { getEmails, sendEmail } from "../controller/EmailController.js";
 
 const router = express.Router();
 
-router.route("/send", restoreUser).post(sendEmail);
+router.route("/send").post(sendEmail);
+router.route("/get-emails").post(getEmails);
 
 export default router;
