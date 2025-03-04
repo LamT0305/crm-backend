@@ -17,6 +17,7 @@ import activityRoute from "./router/activityRoute.js";
 import emailRoute from "./router/emailRoute.js";
 import { fetchReplies } from "./controller/EmailController.js";
 import WebhookLogModel from "./model/WebhookLogModel.js";
+import MongoStore from "connect-mongo";
 
 // Load environment variables
 dotenv.config();
@@ -37,6 +38,10 @@ app.use(
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
+    store: MongoStore.create({
+      mongoUrl: process.env.MONGO_URI, // Use your MongoDB connection string from .env
+      collectionName: "sessions",
+    }),
     cookie: { secure: false, httpOnly: true },
   })
 );
