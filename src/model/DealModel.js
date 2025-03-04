@@ -10,8 +10,7 @@ const DealSchema = new mongoose.Schema({
     ref: "Customer",
     required: true,
   },
-  title: String,
-  amount: Number,
+  annualRevenue: Number,
   statusId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Status",

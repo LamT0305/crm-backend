@@ -9,8 +9,9 @@ export const successResponse = (
 
 export const errorResponse = (
   res,
+  error,
   message = "Something went wrong",
   statusCode = 500
 ) => {
-  return res.status(statusCode).json({ success: false, message });
+  return res.status(statusCode).json({ success: false, message, error });
 };

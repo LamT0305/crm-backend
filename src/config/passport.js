@@ -2,17 +2,23 @@ import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import dotenv from "dotenv";
 import UserModel from "../model/UserModel.js";
+import { setUserCredentials } from "./gmailConfig.js";
 
 dotenv.config();
 
 passport.use(
   new GoogleStrategy(
     {
-      clientID: process.env.GOOGLE_CLIENT_ID, // From Google Developer Console
+      clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "/api/v1/auth/google/callback",
+      callbackURL: process.env.GOOGLE_CALLBACK_URL,
+      passReqToCallback: true,
     },
-    async (accessToken, refreshToken, profile, done) => {
+    async (req, accessToken, refreshToken, profile, done) => {
+      // console.log("🔑 Access Token:", accessToken);
+      // console.log("🔄 Refresh Token:", refreshToken);
+      // console.log("👤 User Profile:", profile);
+
       try {
         let user = await UserModel.findOne({ googleId: profile.id });
 
@@ -22,10 +28,23 @@ passport.use(
             name: profile.displayName,
             email: profile.emails[0].value,
             userName: profile.emails[0].value.split("@")[0],
+            refreshToken: refreshToken,
+            accessToken: accessToken,
           });
 
           await user.save();
+        } else {
+          await UserModel.updateOne(
+            { googleId: profile.id },
+            {
+              refreshToken: refreshToken,
+              accessToken: accessToken,
+            },
+            { upsert: true }
+          );
         }
+
+        setUserCredentials(user.refreshToken);
 
         return done(null, user);
       } catch (err) {
@@ -35,13 +54,14 @@ passport.use(
   )
 );
 
-// Serialize user (for session)
+// Serialize user (store Google ID in session)
 passport.serializeUser((user, done) => {
-  done(null, user.id);
+  console.log("🔵 SERIALIZE USER:", user);
+  done(null, user._id); // Make sure `user.id` exists
 });
 
-// Deserialize user
 passport.deserializeUser(async (id, done) => {
+  console.log("🟢 DESERIALIZE USER:", id);
   try {
     const user = await UserModel.findById(id);
     done(null, user);

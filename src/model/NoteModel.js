@@ -6,6 +6,11 @@ const NoteSchema = new mongoose.Schema({
     ref: "User",
     required: true,
   },
+  customerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Customer",
+    required: true,
+  },
   title: String,
   content: String,
   createdAt: { type: Date, default: Date.now },
