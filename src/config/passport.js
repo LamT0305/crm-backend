@@ -57,15 +57,17 @@ passport.use(
 // Serialize user (store Google ID in session)
 passport.serializeUser((user, done) => {
   console.log("🔵 SERIALIZE USER:", user);
-  done(null, user._id); // Make sure `user.id` exists
+  done(null, user._id); // Ensure `_id` exists
 });
 
 passport.deserializeUser(async (id, done) => {
   console.log("🟢 DESERIALIZE USER:", id);
   try {
     const user = await UserModel.findById(id);
+    console.log("✅ User Found:", user);
     done(null, user);
   } catch (err) {
+    console.error("❌ Error in Deserialization:", err);
     done(err, null);
   }
 });
