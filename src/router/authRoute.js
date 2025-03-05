@@ -31,12 +31,7 @@ router.get(
       return res.status(401).json({ message: "Google login failed" });
     }
 
-    // Set session cookie (not needed if express-session is configured correctly)
-    res.cookie("connect.sid", req.sessionID, {
-      httpOnly: true,
-      secure: false, // Must be true in production (HTTPS)
-      sameSite: "None",
-    });
+    
     res.redirect("http://localhost:5173/dashboard");
   }
 );
