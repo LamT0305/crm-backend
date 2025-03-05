@@ -33,16 +33,38 @@ app.use(
   })
 ); // Enable CORS
 app.use(morgan("dev")); // Logging
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // ✅ Nếu request không có Origin (ví dụ: Postman), cho phép
+      if (!origin) return callback(null, true);
+
+      const blockedOrigins = [];
+      if (blockedOrigins.includes(origin)) {
+        return callback(new Error("Not allowed by CORS"));
+      }
+
+      return callback(null, true);
+    },
+    credentials: true, // ✅ Bắt buộc để gửi Cookie/Session
+  })
+);
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({
-      mongoUrl: process.env.MONGO_URI, // Use your MongoDB connection string from .env
+      mongoUrl: process.env.MONGO_URI,
       collectionName: "sessions",
     }),
-    cookie: { secure: false, httpOnly: true },
+    cookie: {
+      secure: process.env.NODE_ENV === "production", // Chỉ bật trên HTTPS
+      httpOnly: true,
+      sameSite: "none", // 🔥 Quan trọng: hỗ trợ cookie giữa nhiều origin
+    },
   })
 );
 
