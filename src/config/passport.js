@@ -54,33 +54,8 @@ passport.use(
   )
 );
 
-import passport from "passport";
-import { Strategy as GoogleStrategy } from "passport-google-oauth20";
-
-// Google OAuth setup
-passport.use(
-  new GoogleStrategy(
-    {
-      clientID: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "http://yourbackenddomain.com/auth/google/callback",
-    },
-    (accessToken, refreshToken, profile, done) => {
-      // This is where you save user to DB if necessary
-      const user = {
-        id: profile.id,
-        email: profile.emails[0].value,
-        name: profile.displayName,
-        photo: profile.photos[0].value,
-      };
-      return done(null, user);
-    }
-  )
-);
-
-// Passport session handling (not needed if you're using JWT)
 passport.serializeUser((user, done) => {
-  done(null, user.id);
+  done(null, user._id);
 });
 passport.deserializeUser((id, done) => {
   done(null, { id });
