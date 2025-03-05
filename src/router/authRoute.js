@@ -32,7 +32,9 @@ router.get(
     }
 
     
-    res.redirect("http://localhost:5173/dashboard");
+    // res.redirect("http://localhost:5173/dashboard");
+    res.redirect("/api/v1/auth/profile");
+
   }
 );
 
