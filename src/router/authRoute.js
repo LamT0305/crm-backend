@@ -31,7 +31,7 @@ router.get(
       return res.status(401).json({ message: "Google login failed" });
     }
 
-    res.redirect("/api/v1/auth/profile");
+    res.redirect("http://localhost:5173/dashboard");
   }
 );
 
