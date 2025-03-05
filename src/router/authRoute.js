@@ -34,7 +34,7 @@ router.get(
     // Set session cookie (not needed if express-session is configured correctly)
     res.cookie("connect.sid", req.sessionID, {
       httpOnly: true,
-      secure: true, // Must be true in production (HTTPS)
+      secure: process.env.NODE_ENV === "production", // Must be true in production (HTTPS)
       sameSite: "None",
     });
     res.redirect("http://localhost:5173/dashboard");

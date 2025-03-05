@@ -36,18 +36,8 @@ app.use(morgan("dev")); // Logging
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      // ✅ Nếu request không có Origin (ví dụ: Postman), cho phép
-      if (!origin) return callback(null, true);
-
-      const blockedOrigins = [];
-      if (blockedOrigins.includes(origin)) {
-        return callback(new Error("Not allowed by CORS"));
-      }
-
-      return callback(null, true);
-    },
-    credentials: true, // ✅ Bắt buộc để gửi Cookie/Session
+    origin: "http://localhost:5173",
+    credentials: true, // ✅ Allow sending cookies
   })
 );
 
@@ -61,8 +51,8 @@ app.use(
       collectionName: "sessions",
     }),
     cookie: {
-      secure: true, // Chỉ bật trên HTTPS
-      httpOnly: true,
+      secure: process.env.NODE_ENV === "production", // Chỉ bật trên HTTPS
+      httpOnly: false,
       sameSite: "none", // 🔥 Quan trọng: hỗ trợ cookie giữa nhiều origin
       maxAge: 1000 * 60 * 60 * 24,
     },
