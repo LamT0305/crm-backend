@@ -37,6 +37,7 @@ router.get(
       secure: true, // Must be true in production (HTTPS)
       sameSite: "None",
     });
+    res.redirect("http://localhost:5173/dashboard");
   }
 );
 
