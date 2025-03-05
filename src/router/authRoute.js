@@ -1,6 +1,7 @@
 import express from "express";
 import passport from "passport";
 import jwt from "jsonwebtoken";
+import { verifyToken } from "../middleware/authMiddleWare";
 
 const router = express.Router();
 
@@ -22,66 +23,29 @@ router.get(
 // Google OAuth Callback
 router.get(
   "/google/callback",
-  passport.authenticate("google", { failureRedirect: "/" }),
-  (req, res) => {
-    console.log("✅ Google Login Success:", req.user);
-
-    // Kiểm tra nếu req.user bị undefined
+  passport.authenticate("google", { session: false, failureRedirect: "/" }),
+  async (req, res) => {
     if (!req.user) {
       return res.status(401).json({ message: "Google login failed" });
     }
 
-    res.redirect("https://0801-222-252-30-115.ngrok-free.app/profile");
-    // res.redirect("/api/v1/auth/profile");
+    // 🔥 Generate JWT Token
+    const token = jwt.sign(
+      { id: req.user.id, email: req.user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // ✅ Redirect user with JWT (frontend will handle storage)
+    res.redirect(
+      `https://0801-222-252-30-115.ngrok-free.app/auth-success?token=${token}`
+    );
   }
 );
 
-router.get("/profile", (req, res) => {
-  console.log("🔍 Profile Session:", req.session);
-  console.log("👤 Profile User:", req.user);
-
-  // Ensure the user is actually authenticated
-  if (!req.isAuthenticated() || !req.user) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-
-  res.json({ user: req.user });
+router.get("/profile", verifyToken, (req, res) => {
+  res.json({ user: req.user }); // ✅ Return user info from JWT
 });
 
-// router.get("/check-session", (req, res) => {
-//   console.log("Session user:", req.user);
-//   if (req.user) {
-//     res.json({ user: req.user });
-//   } else {
-//     res.status(401).json({ message: "Session expired" });
-//   }
-// });
-
-router.post("/logout", (req, res, next) => {
-  req.logout((err) => {
-    if (err) return next(err);
-
-    req.session.destroy((error) => {
-      if (error) {
-        console.error("❌ Error destroying session:", error);
-        return res.status(500).json({ message: "Logout failed" });
-      }
-
-      console.log("✅ Session Destroyed Successfully");
-
-      // Forcefully clear the session cookie
-      res.clearCookie("connect.sid", {
-        path: "/",
-        httpOnly: true,
-        secure: false, // Change to true if using HTTPS
-        sameSite: "strict",
-        maxAge: 0, // Expire the cookie immediately
-      });
-
-      console.log("🍪 Cookie Cleared");
-      res.status(200).json({ message: "Logout successful" });
-    });
-  });
-});
 
 export default router;

@@ -3,7 +3,6 @@ import cors from "cors";
 import morgan from "morgan";
 import dotenv from "dotenv";
 import connectDB from "./config/db.js";
-import session from "express-session";
 import passport from "./config/passport.js";
 import authRouter from "./router/authRoute.js";
 import userRouter from "./router/userRoute.js";
@@ -17,7 +16,6 @@ import activityRoute from "./router/activityRoute.js";
 import emailRoute from "./router/emailRoute.js";
 import { fetchReplies } from "./controller/EmailController.js";
 import WebhookLogModel from "./model/WebhookLogModel.js";
-import MongoStore from "connect-mongo";
 
 // Load environment variables
 dotenv.config();
@@ -27,34 +25,13 @@ const app = express();
 
 // Middleware
 app.use(express.json()); // Parse JSON body
-app.use(
-  cors({
-    credentials: true,
-  })
-); // Enable CORS
+// Enable CORS
 app.use(morgan("dev")); // Logging
 
 app.use(
   cors({
     origin: "https://0801-222-252-30-115.ngrok-free.app",
     credentials: true, // ✅ Allow sending cookies
-  })
-);
-
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    store: MongoStore.create({
-      mongoUrl: process.env.MONGO_URI,
-      collectionName: "sessions",
-    }),
-    cookie: {
-      secure: true, // Chỉ bật trên HTTPS
-      httpOnly: true,
-      sameSite: "none", // 🔥 Quan trọng: hỗ trợ cookie giữa nhiều origin
-    },
   })
 );
 
