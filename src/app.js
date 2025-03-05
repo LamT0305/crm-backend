@@ -64,6 +64,7 @@ app.use(
       secure: process.env.NODE_ENV === "production", // Chỉ bật trên HTTPS
       httpOnly: true,
       sameSite: "none", // 🔥 Quan trọng: hỗ trợ cookie giữa nhiều origin
+      maxAge: 1000 * 60 * 60 * 24,
     },
   })
 );
