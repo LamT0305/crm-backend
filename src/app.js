@@ -53,7 +53,7 @@ app.use(
     cookie: {
       secure: false, // Chỉ bật trên HTTPS
       httpOnly: true,
-      sameSite: "lax", // 🔥 Quan trọng: hỗ trợ cookie giữa nhiều origin
+      sameSite: "none", // 🔥 Quan trọng: hỗ trợ cookie giữa nhiều origin
     },
   })
 );
