@@ -31,7 +31,7 @@ router.get(
       return res.status(401).json({ message: "Google login failed" });
     }
 
-    res.redirect("http://localhost:5173/dashboard");
+    res.redirect("https://0801-222-252-30-115.ngrok-free.app/profile");
     // res.redirect("/api/v1/auth/profile");
   }
 );

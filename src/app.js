@@ -36,7 +36,7 @@ app.use(morgan("dev")); // Logging
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: "https://0801-222-252-30-115.ngrok-free.app",
     credentials: true, // ✅ Allow sending cookies
   })
 );
@@ -51,7 +51,7 @@ app.use(
       collectionName: "sessions",
     }),
     cookie: {
-      secure: false, // Chỉ bật trên HTTPS
+      secure: true, // Chỉ bật trên HTTPS
       httpOnly: true,
       sameSite: "none", // 🔥 Quan trọng: hỗ trợ cookie giữa nhiều origin
     },
