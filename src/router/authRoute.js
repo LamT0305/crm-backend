@@ -1,7 +1,7 @@
 import express from "express";
 import passport from "passport";
 import jwt from "jsonwebtoken";
-import { verifyToken } from "../middleware/authMiddleWare";
+import { verifyToken } from "../middleware/authMiddleWare.js";
 
 const router = express.Router();
 
@@ -46,6 +46,5 @@ router.get(
 router.get("/profile", verifyToken, (req, res) => {
   res.json({ user: req.user }); // ✅ Return user info from JWT
 });
-
 
 export default router;
