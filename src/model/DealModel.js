@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+
 const DealSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -10,14 +11,25 @@ const DealSchema = new mongoose.Schema({
     ref: "Customer",
     required: true,
   },
-  annualRevenue: Number,
-  statusId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Status",
+  products: [
+    {
+      productId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "ProductService",
+      },
+      quantity: Number,
+      price: Number,
+    },
+  ],
+  quotationId: { type: mongoose.Schema.Types.ObjectId, ref: "Quotation" }, // Linked quotation
+  status: {
+    type: String,
+    enum: ["Open", "Negotiation", "Won", "Lost"],
+    default: "Open",
   },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });
-const DealModel = mongoose.model("Deal", DealSchema);
 
+const DealModel = mongoose.model("Deal", DealSchema);
 export default DealModel;

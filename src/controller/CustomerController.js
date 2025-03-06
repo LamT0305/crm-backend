@@ -1,45 +1,25 @@
-import CompanyModel from "../model/CompanyModel.js";
 import CustomerModel from "../model/CustomerModel.js";
 import { successResponse, errorResponse } from "../utils/responseHandler.js";
 
-// Customer
+// Create a new customer
 export const createCustomer = async (req, res) => {
   try {
-    const {
-      name,
-      email,
-      phone,
-      statusId,
-      companyName,
-      numberOfEmployees,
-      webSite,
-      territory,
-      industry,
-    } = req.body;
-    if (!name || !email || !phone || !status) {
-      res.status(400).send({ message: "All fields must be provided" });
+    const { name, email, phone, gender, status, sourceId } = req.body;
+
+    // Validate required fields
+    if (!name || !email || !phone || !gender || !status || !sourceId) {
+      return res.status(400).json({ message: "All fields must be provided" });
     }
 
     const customer = await CustomerModel.create({
       userId: req.user.id,
-      name: name,
-      email: email,
-      phone: phone,
-      statusId: statusId,
+      name,
+      email,
+      phone,
+      gender,
+      status,
+      sourceId,
     });
-
-    if (companyName || numberOfEmployees || webSite || territory || industry) {
-      const company = await CompanyModel.create({
-        name: companyName || "",
-        industry: industry || "",
-        webSite: webSite || "",
-        territory: territory || "",
-        numberOfEmployees: numberOfEmployees || 0,
-      });
-
-      customer.companyId = company._id;
-      await customer.save();
-    }
 
     successResponse(res, customer);
   } catch (error) {
@@ -47,24 +27,27 @@ export const createCustomer = async (req, res) => {
   }
 };
 
+// Get all customers for the logged-in user
 export const getCustomersByUser = async (req, res) => {
   try {
-    const customers = await CustomerModel.find({
-      userId: req.user.id,
-    })
-      .populate("statusId")
-      .populate("companyId");
+    const customers = await CustomerModel.find({ userId: req.user.id })
+      .populate("deals") // Include associated deals
+      .populate("sourceId", "name") // Populate Source info (only `name`)
+      .sort({ createdAt: -1 });
+
     successResponse(res, customers);
   } catch (error) {
     errorResponse(res, error.message);
   }
 };
 
+// Get a single customer by ID
 export const getCustomerById = async (req, res) => {
   try {
     const customer = await CustomerModel.findById(req.params.id)
-      .populate("statusId")
-      .populate("companyId");
+      .populate("deals") // Include associated deals
+      .populate("sourceId", "name");
+
     if (!customer)
       return res.status(404).json({ message: "Customer not found" });
 
@@ -74,13 +57,17 @@ export const getCustomerById = async (req, res) => {
   }
 };
 
+// Update customer details
 export const updateCustomer = async (req, res) => {
   try {
+    const { name, email, phone, gender, status, sourceId } = req.body;
+
     const updatedCustomer = await CustomerModel.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      { name, email, phone, gender, status, sourceId },
       { new: true }
     );
+
     if (!updatedCustomer)
       return res.status(404).json({ message: "Customer not found" });
 
@@ -90,24 +77,7 @@ export const updateCustomer = async (req, res) => {
   }
 };
 
-export const updateCustomerCompany = async (req, res) => {
-  try {
-    const company = await CompanyModel.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      {
-        new: true,
-      }
-    );
-
-    if (!company) {
-      return res.status(404).json({ message: "company not found" });
-    }
-    successResponse(res, company);
-  } catch (error) {
-    errorResponse(res, error.message);
-  }
-};
+// Delete customer
 export const deleteCustomer = async (req, res) => {
   try {
     const deletedCustomer = await CustomerModel.findByIdAndDelete(
@@ -115,11 +85,7 @@ export const deleteCustomer = async (req, res) => {
     );
     if (!deletedCustomer)
       return res.status(404).json({ message: "Customer not found" });
-    const deletedCompany = await CompanyModel.findByIdAndDelete(
-      deletedCustomer.companyId
-    );
-    if (!deletedCompany)
-      return res.status(404).json({ message: "Company not found" });
+
     successResponse(res, { message: "Customer deleted successfully" });
   } catch (error) {
     errorResponse(res, "Could not delete customer");

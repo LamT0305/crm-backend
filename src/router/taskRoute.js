@@ -6,10 +6,10 @@ import {
   getTasksBetweenUserAndCustomer,
   updateTask,
 } from "../controller/TaskController.js";
-
+import { verifyToken } from "../middleware/authMiddleWare.js";
 const router = express.Router();
 
-
+router.use(verifyToken);
 router.route("/create-task").post(createTask);
 router.route("/update-task/:id").post(updateTask);
 router.route("/delete-task/:id").post(deleteTask);

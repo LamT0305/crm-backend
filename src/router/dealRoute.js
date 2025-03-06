@@ -2,16 +2,16 @@ import express from "express";
 import {
   createDeal,
   deleteDeal,
-  getDealByUser,
-  updateDealStatus,
+  getDealsByUser,
+  updateDeal,
 } from "../controller/DealController.js";
-
+import { verifyToken } from "../middleware/authMiddleWare.js";
 const router = express.Router();
 
-
-router.route("/get-deals").get(getDealByUser);
+router.use(verifyToken);
+router.route("/get-deals").get(getDealsByUser);
 router.route("/create-deal").post(createDeal);
 router.route("/delete-deal/:id").delete(deleteDeal);
-router.route("/update-deal-status/:id").put(updateDealStatus);
+router.route("/update-deal/:id").put(updateDeal);
 
 export default router;

@@ -4,18 +4,9 @@ import morgan from "morgan";
 import dotenv from "dotenv";
 import connectDB from "./config/db.js";
 import passport from "./config/passport.js";
-import authRouter from "./router/authRoute.js";
-import userRouter from "./router/userRoute.js";
-import statusRouter from "./router/statusRoute.js";
-import dealRouter from "./router/dealRoute.js";
-import noteRouter from "./router/noteRoute.js";
-import taskRouter from "./router/taskRoute.js";
-import sourceRoute from "./router/sourceRoute.js";
-import customerRoute from "./router/customerRoute.js";
-import activityRoute from "./router/activityRoute.js";
-import emailRoute from "./router/emailRoute.js";
-import { fetchReplies } from "./controller/EmailController.js";
 import WebhookLogModel from "./model/WebhookLogModel.js";
+import { fetchReplies } from "./controller/EmailController.js";
+import { appRouter } from "./config/router.js";
 
 // Load environment variables
 dotenv.config();
@@ -42,17 +33,7 @@ connectDB();
 app.use(passport.initialize());
 
 //Routes
-
-app.use("/api/v1/auth", authRouter);
-app.use("/api/v1/user", userRouter);
-app.use("/api/v1/status", statusRouter);
-app.use("/api/v1/deal", dealRouter);
-app.use("/api/v1/note", noteRouter);
-app.use("/api/v1/task", taskRouter);
-app.use("/api/v1/source", sourceRoute);
-app.use("/api/v1/customer", customerRoute);
-app.use("/api/v1/activity", activityRoute);
-app.use("/api/v1/email", emailRoute);
+appRouter(app);
 
 // 🔔 Gmail Webhook Listener
 app.post("/gmail/webhook", async (req, res) => {
