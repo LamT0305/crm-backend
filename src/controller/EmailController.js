@@ -9,9 +9,6 @@ const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
 export const sendEmail = async (req, res) => {
   try {
-    // await refreshAccessToken(req.user._id)
-    console.log("📌 Session data:", req.session);
-    console.log("👤 User in sendEmail:", req.user);
     const { to, subject, message } = req.body;
 
     if (!to || !subject || !message) {
@@ -56,7 +53,7 @@ export const sendEmail = async (req, res) => {
     });
   } catch (error) {
     console.error("Error sending email:", error);
-    res.status(500).json({ error: "Failed to send email", error });
+    res.status(500).json({ error: "Failed to send email", error, req });
   }
 };
 
