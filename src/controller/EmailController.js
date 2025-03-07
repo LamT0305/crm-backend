@@ -56,7 +56,7 @@ export const sendEmail = async (req, res) => {
     });
   } catch (error) {
     console.error("Error sending email:", error);
-    res.status(500).json({ error: "Failed to send email" });
+    res.status(500).json({ error: "Failed to send email", error });
   }
 };
 
