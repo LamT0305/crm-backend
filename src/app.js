@@ -19,12 +19,7 @@ app.use(express.json()); // Parse JSON body
 // Enable CORS
 app.use(morgan("dev")); // Logging
 
-app.use(
-  cors({
-    origin: "https://0801-222-252-30-115.ngrok-free.app",
-    credentials: true, // ✅ Allow sending cookies
-  })
-);
+app.use(cors());
 
 // connect db
 connectDB();

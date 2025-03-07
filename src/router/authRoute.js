@@ -37,9 +37,7 @@ router.get(
     );
 
     // ✅ Redirect user with JWT (frontend will handle storage)
-    res.redirect(
-      `https://0801-222-252-30-115.ngrok-free.app/auth-success?token=${token}`
-    );
+    res.redirect(`http://localhost:5173/auth-success?token=${token}`);
   }
 );
 
