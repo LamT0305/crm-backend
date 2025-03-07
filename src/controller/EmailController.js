@@ -9,10 +9,13 @@ const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
 export const sendEmail = async (req, res) => {
   console.log("🔍 Debugging req.user:", req.user); // Check if req.user exists
-  if (!req.user || !req.user._id) {
+  if (!req.user || !req.user.id) {
     return res
       .status(400)
-      .json({ error: "User authentication failed. userId is missing." });
+      .json({
+        error: "User authentication failed. userId is missing.",
+        request: req,
+      });
   }
   try {
     const { to, subject, message } = req.body;
@@ -43,7 +46,7 @@ export const sendEmail = async (req, res) => {
 
     // Store sent email in the database
     const sentEmail = await EmailModel.create({
-      userId: req.user._id, // CRM user who sent the email
+      userId: req.user.id, // CRM user who sent the email
       to,
       subject,
       message,
@@ -67,7 +70,7 @@ export const getEmails = async (req, res) => {
   try {
     const { recipient } = req.body;
     const emails = await EmailModel.find({
-      userId: req.user._id,
+      userId: req.user.id,
       to: recipient,
     });
     // successResponse(res, emails);
