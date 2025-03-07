@@ -8,6 +8,12 @@ import UserModel from "../model/UserModel.js";
 const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
 export const sendEmail = async (req, res) => {
+  console.log("🔍 Debugging req.user:", req.user); // Check if req.user exists
+  if (!req.user || !req.user._id) {
+    return res
+      .status(400)
+      .json({ error: "User authentication failed. userId is missing." });
+  }
   try {
     const { to, subject, message } = req.body;
 
