@@ -19,7 +19,11 @@ app.use(express.json()); // Parse JSON body
 // Enable CORS
 app.use(morgan("dev")); // Logging
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "*",
+  })
+);
 
 // connect db
 connectDB();

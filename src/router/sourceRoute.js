@@ -10,6 +10,6 @@ const router = express.Router();
 router.use(verifyToken);
 router.route("/create-source").post(createSource);
 router.route("/get-sources").get(getAllSources);
-router.route("/delete-source").delete(deleteSource);
+router.route("/delete-source/:id").delete(deleteSource);
 
 export default router;
