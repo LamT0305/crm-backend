@@ -4,21 +4,38 @@ import { successResponse, errorResponse } from "../utils/responseHandler.js";
 // Create a new customer
 export const createCustomer = async (req, res) => {
   try {
-    const { name, email, phone, gender, status, sourceId } = req.body;
+    const {
+      firstName,
+      lastName,
+      email,
+      phone,
+      gender,
+      monthlyIncome,
+      sourceId,
+    } = req.body;
 
     // Validate required fields
-    if (!name || !email || !phone || !gender || !status || !sourceId) {
+    if (
+      !firstName ||
+      !lastName ||
+      !email ||
+      !phone ||
+      !gender ||
+      !monthlyIncome ||
+      !sourceId
+    ) {
       return res.status(400).json({ message: "All fields must be provided" });
     }
 
     const customer = await CustomerModel.create({
       userId: req.user.id,
-      name,
-      email,
-      phone,
-      gender,
-      status,
-      sourceId,
+      firstName: firstName,
+      lastName: lastName,
+      email: email,
+      phone: phone,
+      gender: gender,
+      monthlyIncome: monthlyIncome,
+      sourceId: sourceId,
     });
 
     successResponse(res, customer);
@@ -28,9 +45,28 @@ export const createCustomer = async (req, res) => {
 };
 
 // Get all customers for the logged-in user
+export const getLeadsByUser = async (req, res) => {
+  try {
+    const customers = await CustomerModel.find({
+      userId: req.user.id,
+      status: "lead",
+    })
+      .populate("deals") // Include associated deals
+      .populate("sourceId", "name") // Populate Source info (only `name`)
+      .sort({ createdAt: -1 });
+
+    successResponse(res, customers);
+  } catch (error) {
+    errorResponse(res, error.message);
+  }
+};
+
 export const getCustomersByUser = async (req, res) => {
   try {
-    const customers = await CustomerModel.find({ userId: req.user.id })
+    const customers = await CustomerModel.find({
+      userId: req.user.id,
+      status: "customer",
+    })
       .populate("deals") // Include associated deals
       .populate("sourceId", "name") // Populate Source info (only `name`)
       .sort({ createdAt: -1 });
@@ -44,9 +80,10 @@ export const getCustomersByUser = async (req, res) => {
 // Get a single customer by ID
 export const getCustomerById = async (req, res) => {
   try {
-    const customer = await CustomerModel.findById(req.params.id)
-      .populate("deals") // Include associated deals
-      .populate("sourceId", "name");
+    const customer = await CustomerModel.findById(req.params.id).populate(
+      "sourceId",
+      "name"
+    );
 
     if (!customer)
       return res.status(404).json({ message: "Customer not found" });
@@ -60,11 +97,39 @@ export const getCustomerById = async (req, res) => {
 // Update customer details
 export const updateCustomer = async (req, res) => {
   try {
-    const { name, email, phone, gender, status, sourceId } = req.body;
+    const {
+      firstName,
+      lastName,
+      email,
+      phone,
+      gender,
+      monthlyIncome,
+      sourceId,
+    } = req.body;
 
+    // Validate required fields
+    if (
+      !firstName ||
+      !lastName ||
+      !email ||
+      !phone ||
+      !gender ||
+      !monthlyIncome ||
+      !sourceId
+    ) {
+      return res.status(400).json({ message: "All fields must be provided" });
+    }
     const updatedCustomer = await CustomerModel.findByIdAndUpdate(
       req.params.id,
-      { name, email, phone, gender, status, sourceId },
+      {
+        firstName: firstName,
+        lastName: lastName,
+        email: email,
+        phone: phone,
+        gender: gender,
+        monthlyIncome: monthlyIncome,
+        sourceId: sourceId,
+      },
       { new: true }
     );
 
