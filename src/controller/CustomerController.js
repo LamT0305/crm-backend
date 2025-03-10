@@ -1,4 +1,5 @@
 import CustomerModel from "../model/CustomerModel.js";
+import UserModel from "../model/UserModel.js";
 import { successResponse, errorResponse } from "../utils/responseHandler.js";
 
 // Create a new customer
@@ -87,11 +88,14 @@ export const getCustomerById = async (req, res) => {
       "sourceId",
       "name"
     );
-
+    // .populate("userId");
+    // .populate("userId");
+    const user = await UserModel.findById(customer.userId);
     if (!customer)
       return res.status(404).json({ message: "Customer not found" });
 
-    successResponse(res, customer);
+    // successResponse(res, customer);
+    res.status(200).json({ data: customer, user: user });
   } catch (error) {
     errorResponse(res, error.message);
   }
