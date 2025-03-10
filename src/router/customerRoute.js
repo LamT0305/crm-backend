@@ -14,7 +14,7 @@ router.use(verifyToken);
 router.route("/create-customer").post(createCustomer);
 router.route("/customers").get(getCustomersByUser);
 router.route("/get-all-leads").get(getLeadsByUser);
-router.route("/get-customers/:id").get(getCustomerById);
+router.route("/get-customer/:id").get(getCustomerById);
 router.route("/delete-customer/:id").delete(deleteCustomer);
 router.route("update-customer/:id").put(updateCustomer);
 

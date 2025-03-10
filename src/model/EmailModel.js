@@ -8,6 +8,13 @@ const EmailSchema = new mongoose.Schema({
   status: { type: String, enum: ["sent", "received"], required: true },
   threadId: { type: String, required: true },
   sentAt: { type: Date, required: true },
+  attachments: [
+    {
+      filename: String,
+      path: String,
+      mimetype: String,
+    },
+  ],
 });
 
 // ✅ Prevent duplicate emails with the same threadId and sentAt

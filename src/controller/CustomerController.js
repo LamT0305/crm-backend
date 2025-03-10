@@ -12,6 +12,7 @@ export const createCustomer = async (req, res) => {
       gender,
       monthlyIncome,
       sourceId,
+      industry,
     } = req.body;
 
     // Validate required fields
@@ -22,7 +23,8 @@ export const createCustomer = async (req, res) => {
       !phone ||
       !gender ||
       !monthlyIncome ||
-      !sourceId
+      !sourceId ||
+      !industry
     ) {
       return res.status(400).json({ message: "All fields must be provided" });
     }
@@ -36,6 +38,7 @@ export const createCustomer = async (req, res) => {
       gender: gender,
       monthlyIncome: monthlyIncome,
       sourceId: sourceId,
+      industry: industry,
     });
 
     successResponse(res, customer);
@@ -105,6 +108,7 @@ export const updateCustomer = async (req, res) => {
       gender,
       monthlyIncome,
       sourceId,
+      industry,
     } = req.body;
 
     // Validate required fields
@@ -115,7 +119,8 @@ export const updateCustomer = async (req, res) => {
       !phone ||
       !gender ||
       !monthlyIncome ||
-      !sourceId
+      !sourceId ||
+      !industry
     ) {
       return res.status(400).json({ message: "All fields must be provided" });
     }
@@ -129,6 +134,7 @@ export const updateCustomer = async (req, res) => {
         gender: gender,
         monthlyIncome: monthlyIncome,
         sourceId: sourceId,
+        industry: industry,
       },
       { new: true }
     );

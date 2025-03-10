@@ -4,64 +4,96 @@ import { oauth2Client, refreshAccessToken } from "../config/gmailConfig.js";
 import { google } from "googleapis";
 import { getEmailBody } from "../utils/extractEmailBody.js";
 import UserModel from "../model/UserModel.js";
+import fs from "fs";
+import path from "path";
 
 const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
 export const sendEmail = async (req, res) => {
-  console.log("🔍 Debugging req.user:", req.user); // Check if req.user exists
   if (!req.user || !req.user.id) {
-    return res
-      .status(400)
-      .json({
-        error: "User authentication failed. userId is missing.",
-        request: req,
-      });
+    return res.status(401).json({
+      error: "User authentication failed. userId is missing.",
+    });
   }
+
   try {
     const { to, subject, message } = req.body;
+    const attachments = req.files || []; // Get uploaded files
 
     if (!to || !subject || !message) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const rawMessage = [
+    // Create email body with attachments
+    let emailBody = [
       `To: ${to}`,
       "From: me",
       `Subject: ${subject}`,
       "MIME-Version: 1.0",
-      "Content-Type: text/plain; charset=utf-8",
+      'Content-Type: multipart/mixed; boundary="boundary123"',
+      "",
+      "--boundary123",
+      'Content-Type: text/plain; charset="UTF-8"',
       "",
       message,
-    ].join("\n");
+      "",
+    ];
 
+    // Process attachments
+    for (const file of attachments) {
+      const filePath = path.resolve(file.path);
+      const fileData = fs.readFileSync(filePath);
+      const encodedFile = fileData.toString("base64");
+
+      emailBody.push(
+        "--boundary123",
+        `Content-Type: ${file.mimetype}; name="${file.originalname}"`,
+        "Content-Transfer-Encoding: base64",
+        `Content-Disposition: attachment; filename="${file.originalname}"`,
+        "",
+        encodedFile,
+        ""
+      );
+    }
+
+    emailBody.push("--boundary123--"); // End of email body
+    const rawMessage = emailBody.join("\n");
+
+    // Encode message to Base64 (Gmail API requirement)
     const encodedMessage = Buffer.from(rawMessage)
       .toString("base64")
       .replace(/\+/g, "-")
       .replace(/\//g, "_");
 
+    // Send email via Gmail API
     const response = await gmail.users.messages.send({
       userId: "me",
       requestBody: { raw: encodedMessage },
     });
 
-    // Store sent email in the database
+    // Save email to MongoDB
     const sentEmail = await EmailModel.create({
-      userId: req.user.id, // CRM user who sent the email
+      userId: req.user.id,
       to,
       subject,
       message,
       status: "sent",
-      threadId: response.data.threadId, // Store Gmail's threadId for tracking replies
+      threadId: response.data.threadId,
       sentAt: new Date(),
+      attachments: attachments.map((file) => ({
+        filename: file.originalname,
+        path: file.path,
+        mimetype: file.mimetype,
+      })),
     });
 
-    res.json({
+    res.status(200).json({
       success: true,
       message: "Email sent successfully!",
       email: sentEmail,
     });
   } catch (error) {
-    console.error("Error sending email:", error);
+    console.error("❌ Error sending email:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -87,10 +119,8 @@ export const fetchReplies = async () => {
     for (const user of users) {
       console.log(`🔄 Refreshing token for user: ${user.email}`);
 
-      // Refresh token
-      await refreshAccessToken(user._id);
+      await refreshAccessToken(user._id); // Refresh OAuth token
 
-      // Fetch inbox emails from Gmail
       const messagesList = await gmail.users.messages.list({
         userId: "me",
         labelIds: ["INBOX"],
@@ -111,12 +141,10 @@ export const fetchReplies = async () => {
         const threadId = msgData.data.threadId;
         const sentAt = new Date(parseInt(msgData.data.internalDate));
 
-        // ✅ Check if this reply is already stored
-        const existingReply = await EmailModel.findOne({ threadId, sentAt });
-
-        if (existingReply) {
-          console.log(`⚠️ Duplicate reply detected, skipping: ${threadId}`);
-          continue; // Skip storing duplicate replies
+        // ✅ Check if the reply already exists
+        if (await EmailModel.exists({ threadId, sentAt })) {
+          console.log(`⚠️ Skipping duplicate reply: ${threadId}`);
+          continue;
         }
 
         const headers = msgData.data.payload.headers;
@@ -125,6 +153,7 @@ export const fetchReplies = async () => {
         const from =
           headers.find((h) => h.name === "From")?.value || "Unknown Sender";
         const body = getEmailBody(msgData.data.payload);
+        const attachments = await fetchAttachments(msgData.data);
 
         const existingSentEmail = await EmailModel.findOne({ threadId });
 
@@ -137,9 +166,10 @@ export const fetchReplies = async () => {
             status: "received",
             threadId,
             sentAt,
+            attachments,
           });
 
-          console.log(`📩 Stored reply for ${existingSentEmail.userId}`);
+          console.log(`📩 Stored reply for user: ${existingSentEmail.userId}`);
         }
       }
     }
@@ -148,4 +178,37 @@ export const fetchReplies = async () => {
   } catch (error) {
     console.error("❌ Error fetching replies:", error);
   }
+};
+
+/**
+ * Fetches email attachments and saves them locally
+ */
+const fetchAttachments = async (emailData) => {
+  const attachments = [];
+  if (!emailData.payload.parts) return attachments;
+
+  for (const part of emailData.payload.parts) {
+    if (!part.body || !part.body.attachmentId) continue;
+
+    const attachmentData = await gmail.users.messages.attachments.get({
+      userId: "me",
+      messageId: emailData.id,
+      id: part.body.attachmentId,
+    });
+
+    if (!attachmentData.data || !attachmentData.data.data) continue;
+
+    const buffer = Buffer.from(attachmentData.data.data, "base64");
+    const filePath = path.join("uploads", `${Date.now()}_${part.filename}`);
+
+    fs.writeFileSync(filePath, buffer);
+
+    attachments.push({
+      filename: part.filename,
+      path: filePath,
+      mimetype: part.mimeType,
+    });
+  }
+
+  return attachments;
 };
