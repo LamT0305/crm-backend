@@ -18,7 +18,12 @@ const app = express();
 app.use(express.json()); // Parse JSON body
 // Enable CORS
 app.use(morgan("dev")); // Logging
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
 app.use(express.urlencoded({ extended: true }));
 // connect db
 connectDB();
@@ -72,4 +77,4 @@ app.post("/gmail/webhook", async (req, res) => {
   }
 });
 
-export default app; 
+export default app;

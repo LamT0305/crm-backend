@@ -2,6 +2,7 @@ import express from "express";
 import passport from "passport";
 import jwt from "jsonwebtoken";
 import { verifyToken } from "../middleware/authMiddleWare.js";
+import UserModel from "../model/UserModel.js";
 
 const router = express.Router();
 
@@ -31,7 +32,7 @@ router.get(
 
     // 🔥 Generate JWT Token
     const token = jwt.sign(
-      { id: req.user._id, email: req.user.email },
+      { id: req.user.id, email: req.user.email },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
@@ -41,8 +42,14 @@ router.get(
   }
 );
 
-router.get("/profile", verifyToken, (req, res) => {
-  res.json({ user: req.user }); // ✅ Return user info from JWT
+router.get("/profile", verifyToken, async (req, res) => {
+  try {
+    const user = await UserModel.findById(req.user.id);
+    res.json({ user: req.user });
+  } catch (error) {
+    return res.status(500).json({ error: error });
+  }
+  // ✅ Return user info from JWT
 });
 
 export default router;

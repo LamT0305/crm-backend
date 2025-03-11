@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import CustomerModel from "../model/CustomerModel.js";
 import UserModel from "../model/UserModel.js";
 import { successResponse, errorResponse } from "../utils/responseHandler.js";
@@ -29,9 +30,10 @@ export const createCustomer = async (req, res) => {
     ) {
       return res.status(400).json({ message: "All fields must be provided" });
     }
+    const userId = new mongoose.Types.ObjectId(String(req.user.id));
 
     const customer = await CustomerModel.create({
-      userId: req.user.id,
+      userId: userId,
       firstName: firstName,
       lastName: lastName,
       email: email,
@@ -42,6 +44,7 @@ export const createCustomer = async (req, res) => {
       industry: industry,
     });
 
+    customer.populate("sourceId", "name");
     successResponse(res, customer);
   } catch (error) {
     errorResponse(res, error.message);
@@ -84,18 +87,14 @@ export const getCustomersByUser = async (req, res) => {
 // Get a single customer by ID
 export const getCustomerById = async (req, res) => {
   try {
-    const customer = await CustomerModel.findById(req.params.id).populate(
-      "sourceId",
-      "name"
-    );
-    // .populate("userId");
-    // .populate("userId");
-    const user = await UserModel.findById(customer.userId);
+    const customer = await CustomerModel.findById(req.params.id)
+      .populate("sourceId", "name")
+      .populate("userId", "name");
     if (!customer)
       return res.status(404).json({ message: "Customer not found" });
 
     // successResponse(res, customer);
-    res.status(200).json({ data: customer, user: user });
+    res.status(200).json({ data: customer });
   } catch (error) {
     errorResponse(res, error.message);
   }
