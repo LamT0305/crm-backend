@@ -187,6 +187,12 @@ const fetchAttachments = async (emailData) => {
   const attachments = [];
   if (!emailData.payload.parts) return attachments;
 
+  // 🔧 Ensure "uploads" directory exists
+  const uploadDir = path.join("uploads");
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true }); // Create folder if it doesn't exist
+  }
+
   for (const part of emailData.payload.parts) {
     if (!part.body || !part.body.attachmentId) continue;
 
@@ -199,12 +205,13 @@ const fetchAttachments = async (emailData) => {
     if (!attachmentData.data || !attachmentData.data.data) continue;
 
     const buffer = Buffer.from(attachmentData.data.data, "base64");
-    const filePath = path.join("uploads", `${Date.now()}_${part.filename}`);
+    const sanitizedFilename = part.filename.replace(/[^a-zA-Z0-9._-]/g, "_"); // Remove special characters
+    const filePath = path.join(uploadDir, `${Date.now()}_${sanitizedFilename}`);
 
     fs.writeFileSync(filePath, buffer);
 
     attachments.push({
-      filename: part.filename,
+      filename: sanitizedFilename,
       path: filePath,
       mimetype: part.mimeType,
     });
