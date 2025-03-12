@@ -6,6 +6,22 @@ import { getEmailBody } from "../utils/extractEmailBody.js";
 import UserModel from "../model/UserModel.js";
 import fs from "fs";
 import path from "path";
+import multer from "multer";
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = "uploads/";
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}_${file.originalname}`);
+  },
+});
+
+const upload = multer({ storage: storage });
 
 const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
@@ -17,80 +33,92 @@ export const sendEmail = async (req, res) => {
   }
 
   try {
-    const { to, subject, message } = req.body;
-    const attachments = req.files || []; // Get uploaded files
+    upload.any()(req, res, async (err) => {
+      if (err) {
+        return res
+          .status(500)
+          .json({ error: "File upload failed", details: err });
+      }
 
-    if (!to || !subject || !message) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
+      const { to, subject, message } = req.body;
+      const attachments = req.files || [];
 
-    // Create email body with attachments
-    let emailBody = [
-      `To: ${to}`,
-      "From: me",
-      `Subject: ${subject}`,
-      "MIME-Version: 1.0",
-      'Content-Type: multipart/mixed; boundary="boundary123"',
-      "",
-      "--boundary123",
-      'Content-Type: text/plain; charset="UTF-8"',
-      "",
-      message,
-      "",
-    ];
+      if (!to || !subject || !message) {
+        return res.status(400).json({
+          error: "Missing required fields",
+          req: req.body,
+          files: attachments,
+        });
+      }
 
-    // Process attachments
-    for (const file of attachments) {
-      const filePath = path.resolve(file.path);
-      const fileData = fs.readFileSync(filePath);
-      const encodedFile = fileData.toString("base64");
-
-      emailBody.push(
-        "--boundary123",
-        `Content-Type: ${file.mimetype}; name="${file.originalname}"`,
-        "Content-Transfer-Encoding: base64",
-        `Content-Disposition: attachment; filename="${file.originalname}"`,
+      // Create email body with attachments
+      let emailBody = [
+        `To: ${to}`,
+        "From: me",
+        `Subject: ${subject}`,
+        "MIME-Version: 1.0",
+        'Content-Type: multipart/mixed; boundary="boundary123"',
         "",
-        encodedFile,
-        ""
-      );
-    }
+        "--boundary123",
+        'Content-Type: text/plain; charset="UTF-8"',
+        "",
+        message,
+        "",
+      ];
 
-    emailBody.push("--boundary123--"); // End of email body
-    const rawMessage = emailBody.join("\n");
+      // Process attachments
+      for (const file of attachments) {
+        const filePath = path.resolve(file.path);
+        const fileData = fs.readFileSync(filePath);
+        const encodedFile = fileData.toString("base64");
 
-    // Encode message to Base64 (Gmail API requirement)
-    const encodedMessage = Buffer.from(rawMessage)
-      .toString("base64")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_");
+        emailBody.push(
+          "--boundary123",
+          `Content-Type: ${file.mimetype}; name="${file.originalname}"`,
+          "Content-Transfer-Encoding: base64",
+          `Content-Disposition: attachment; filename="${file.originalname}"`,
+          "",
+          encodedFile,
+          ""
+        );
+      }
 
-    // Send email via Gmail API
-    const response = await gmail.users.messages.send({
-      userId: "me",
-      requestBody: { raw: encodedMessage },
-    });
+      emailBody.push("--boundary123--"); // End of email body
+      const rawMessage = emailBody.join("\n");
 
-    // Save email to MongoDB
-    const sentEmail = await EmailModel.create({
-      userId: req.user.id,
-      to,
-      subject,
-      message,
-      status: "sent",
-      threadId: response.data.threadId,
-      sentAt: new Date(),
-      attachments: attachments.map((file) => ({
-        filename: file.originalname,
-        path: file.path,
-        mimetype: file.mimetype,
-      })),
-    });
+      // Encode message to Base64 (Gmail API requirement)
+      const encodedMessage = Buffer.from(rawMessage)
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_");
 
-    res.status(200).json({
-      success: true,
-      message: "Email sent successfully!",
-      email: sentEmail,
+      // Send email via Gmail API
+      const response = await gmail.users.messages.send({
+        userId: "me",
+        requestBody: { raw: encodedMessage },
+      });
+
+      // Save email to MongoDB
+      const sentEmail = await EmailModel.create({
+        userId: req.user.id,
+        to,
+        subject,
+        message,
+        status: "sent",
+        threadId: response.data.threadId,
+        sentAt: new Date(),
+        attachments: attachments.map((file) => ({
+          filename: file.originalname,
+          path: file.path,
+          mimetype: file.mimetype,
+        })),
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "Email sent successfully!",
+        email: sentEmail,
+      });
     });
   } catch (error) {
     console.error("❌ Error sending email:", error);
