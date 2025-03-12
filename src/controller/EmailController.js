@@ -104,7 +104,9 @@ export const getEmails = async (req, res) => {
     const emails = await EmailModel.find({
       userId: req.user.id,
       to: recipient,
-    });
+    })
+      .populate("userId", "email name")
+      .sort({ sentAt: -1 });
     // successResponse(res, emails);
     res.status(200).json({ message: "Success", emails: emails });
   } catch (error) {
