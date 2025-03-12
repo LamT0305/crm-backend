@@ -114,6 +114,8 @@ export const sendEmail = async (req, res) => {
         })),
       });
 
+      await sentEmail.populate("userId", "email name");
+
       res.status(200).json({
         success: true,
         message: "Email sent successfully!",
