@@ -42,6 +42,10 @@ const __dirname = path.dirname(__filename);
 // Serve static files from uploads folder
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'build', 'index.html'));
+});
+
 // ✅ Register Routes (Make sure middleware is initialized first)
 appRouter(app);
 
