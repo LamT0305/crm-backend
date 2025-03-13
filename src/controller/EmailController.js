@@ -98,19 +98,16 @@ export const sendEmail = async (req, res) => {
         attachments, // Store Cloudinary URLs
       });
 
-      res
-        .status(200)
-        .json({
-          success: true,
-          message: "Email sent successfully!",
-          email: sentEmail,
-        });
+      res.status(200).json({
+        success: true,
+        message: "Email sent successfully!",
+        email: sentEmail,
+      });
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
-
 
 export const getEmails = async (req, res) => {
   try {
@@ -197,17 +194,11 @@ export const fetchReplies = async () => {
 };
 
 /**
- * Fetches email attachments and saves them locally
+ * Fetches email attachments and saves them in cloud data
  */
 const fetchAttachments = async (emailData) => {
   const attachments = [];
   if (!emailData.payload.parts) return attachments;
-
-  // 🔧 Ensure "uploads" directory exists
-  const uploadDir = path.join("uploads");
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true }); // Create folder if it doesn't exist
-  }
 
   for (const part of emailData.payload.parts) {
     if (!part.body || !part.body.attachmentId) continue;
@@ -221,16 +212,30 @@ const fetchAttachments = async (emailData) => {
     if (!attachmentData.data || !attachmentData.data.data) continue;
 
     const buffer = Buffer.from(attachmentData.data.data, "base64");
-    const sanitizedFilename = part.filename.replace(/[^a-zA-Z0-9._-]/g, "_"); // Remove special characters
-    const filePath = path.join(uploadDir, `${Date.now()}_${sanitizedFilename}`);
+    const sanitizedFilename = part.filename.replace(/[^a-zA-Z0-9._-]/g, "_"); // Sanitize filename
 
-    fs.writeFileSync(filePath, buffer);
+    try {
+      // ✅ Upload buffer to Cloudinary
+      const uploadResult = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { resource_type: "auto", folder: "crm_attachments" },
+          (error, result) => (error ? reject(error) : resolve(result))
+        );
+        stream.end(buffer);
+      });
 
-    attachments.push({
-      filename: sanitizedFilename,
-      path: filePath,
-      mimetype: part.mimeType,
-    });
+      attachments.push({
+        filename: sanitizedFilename,
+        url: uploadResult.secure_url, // ✅ Store Cloudinary URL
+        mimetype: part.mimeType,
+        public_id: uploadResult.public_id, // Cloudinary file ID
+      });
+    } catch (error) {
+      console.error(
+        `❌ Error uploading attachment: ${sanitizedFilename}`,
+        error
+      );
+    }
   }
 
   return attachments;
