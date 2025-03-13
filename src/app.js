@@ -24,8 +24,8 @@ app.use(morgan("dev")); // ✅ Logging
 // Enable CORS
 app.use(
   cors({
-    origin: "http://localhost:5173",
-    credentials: true,
+    origin: "http://localhost:5173", // Allow local frontend
+    credentials: true, // Allow cookies & authentication headers
   })
 );
 
@@ -37,7 +37,6 @@ app.use(passport.initialize());
 
 // ✅ Register Routes (Make sure middleware is initialized first)
 appRouter(app);
-
 
 // 🔔 Gmail Webhook Listener
 app.post("/gmail/webhook", async (req, res) => {

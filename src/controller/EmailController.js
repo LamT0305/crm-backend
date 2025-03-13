@@ -29,7 +29,7 @@ export const sendEmail = async (req, res) => {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      // Upload attachments to Cloudinary (if any)
+      // // Upload attachments to Cloudinary (if any)
       if (req.files && req.files.length > 0) {
         for (const file of req.files) {
           const uploadResult = await new Promise((resolve, reject) => {
@@ -83,10 +83,10 @@ export const sendEmail = async (req, res) => {
 
       const response = await gmail.users.messages.send({
         userId: "me",
-        requestBody: { raw: encodedMessage },
+        requestBody: { raw: rawMessage },
       });
 
-      // Save email with attachment links in the database
+      // // Save email with attachment links in the database
       const sentEmail = await EmailModel.create({
         userId: req.user.id,
         to,
@@ -102,6 +102,7 @@ export const sendEmail = async (req, res) => {
         success: true,
         message: "Email sent successfully!",
         email: sentEmail,
+        // req: attachments,
       });
     });
   } catch (error) {
