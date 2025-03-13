@@ -40,10 +40,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Serve static files from uploads folder
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+const clientBuildPath = path.join(__dirname, "../client/build"); // Adjust based on structure
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'build', 'index.html'));
+app.use(express.static(clientBuildPath));
+
+app.get("*", (req, res) => {
+  res.sendFile(path.join(clientBuildPath, "index.html"));
 });
 
 // ✅ Register Routes (Make sure middleware is initialized first)
