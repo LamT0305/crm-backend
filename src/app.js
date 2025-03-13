@@ -38,12 +38,6 @@ app.use(passport.initialize());
 // ✅ Register Routes (Make sure middleware is initialized first)
 appRouter(app);
 
-// serve file
-
-// Set up multer for file uploads
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // 🔔 Gmail Webhook Listener
 app.post("/gmail/webhook", async (req, res) => {
