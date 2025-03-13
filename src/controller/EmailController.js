@@ -42,7 +42,7 @@ export const sendEmail = async (req, res) => {
 
           attachments.push({
             filename: file.originalname,
-            url: uploadResult.secure_url,
+            path: uploadResult.secure_url,
             mimetype: file.mimetype,
             public_id: uploadResult.public_id,
           });

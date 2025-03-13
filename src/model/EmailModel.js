@@ -13,6 +13,7 @@ const EmailSchema = new mongoose.Schema({
       filename: String,
       path: String,
       mimetype: String,
+      public_id: String,
     },
   ],
 });
