@@ -7,23 +7,16 @@ import UserModel from "../model/UserModel.js";
 import fs from "fs";
 import path from "path";
 import multer from "multer";
-import { fileURLToPath } from "url";
-
-// Set up multer for file uploads
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadPath = path.join(__dirname, "uploads");
+    const uploadPath = "uploads/";
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
     }
-    console.log("Saving file to:", uploadPath); // Debugging
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    console.log("Uploading file:", file.originalname); // Debugging
     cb(null, `${Date.now()}_${file.originalname}`);
   },
 });
@@ -121,7 +114,7 @@ export const sendEmail = async (req, res) => {
         })),
       });
 
-      await sentEmail.populate("userId", "email name");
+      await sentEmail.populate("userId", "email name")
 
       res.status(200).json({
         success: true,
