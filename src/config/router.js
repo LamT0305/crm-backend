@@ -11,6 +11,7 @@ import quotationRoute from "../router/quotationRoute.js";
 import productServiceRoute from "../router/productServiceRoute.js";
 import customerCareRoute from "../router/customerCareRoute.js";
 import uploadRoute from "../router/uploadRoute.js";
+import commentRoute from "../router/commentRoute.js";
 
 export const appRouter = (app) => {
   app.use("/api/v1/auth", authRouter);
@@ -26,4 +27,5 @@ export const appRouter = (app) => {
   app.use("/api/v1/product", productServiceRoute);
   app.use("/api/v1/customer-care", customerCareRoute);
   app.use("/api/v1/upload", uploadRoute);
+  app.use("/api/v1/comment", commentRoute);
 };
