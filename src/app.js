@@ -7,6 +7,8 @@ import passport from "./config/passport.js";
 import WebhookLogModel from "./model/WebhookLogModel.js";
 import { fetchReplies } from "./controller/EmailController.js";
 import { appRouter } from "./config/router.js";
+import path from "path";
+import { fileURLToPath } from "url";
 
 // Load environment variables
 dotenv.config();
@@ -32,6 +34,13 @@ connectDB();
 
 // Initialize Passport
 app.use(passport.initialize());
+
+// Fix for __dirname in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Serve static files from uploads folder
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ✅ Register Routes (Make sure middleware is initialized first)
 appRouter(app);
