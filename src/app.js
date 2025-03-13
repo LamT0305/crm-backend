@@ -35,18 +35,18 @@ connectDB();
 // Initialize Passport
 app.use(passport.initialize());
 
-// Fix for __dirname in ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// // Fix for __dirname in ES modules
+// const __filename = fileURLToPath(import.meta.url);
+// const __dirname = path.dirname(__filename);
 
-// Serve static files from uploads folder
-const clientBuildPath = path.join(__dirname, "../client/build"); // Adjust based on structure
+// // Serve static files from uploads folder
+// const clientBuildPath = path.join(__dirname, "../client/build"); // Adjust based on structure
 
-app.use(express.static(clientBuildPath));
+// app.use(express.static(clientBuildPath));
 
-app.get("*", (req, res) => {
-  res.sendFile(path.join(clientBuildPath, "index.html"));
-});
+// app.get("*", (req, res) => {
+//   res.sendFile(path.join(clientBuildPath, "index.html"));
+// });
 
 // ✅ Register Routes (Make sure middleware is initialized first)
 appRouter(app);
