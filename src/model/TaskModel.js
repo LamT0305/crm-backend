@@ -14,11 +14,18 @@ const TaskSchema = new mongoose.Schema({
   title: String,
   description: String,
   dueDate: Date,
-  priority: String,
+  priority: {
+    type: String,
+    enum: ["Low", "Medium", "High"],
+  },
   status: {
     type: String,
-    enum: ["Backlog", "To do", "In Progress", "Completed", "Canceled"],
+    enum: ["Backlog", "Todo", "InProgress", "Completed", "Canceled"],
   },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
 });
 const TaskModel = mongoose.model("Task", TaskSchema);
 export default TaskModel;

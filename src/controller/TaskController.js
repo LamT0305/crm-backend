@@ -26,9 +26,9 @@ export const createTask = async (req, res) => {
       status: status,
     });
 
-    successResponse(req, task);
+    successResponse(res, task);
   } catch (error) {
-    errorResponse(req, error.message);
+    errorResponse(res, error.message);
   }
 };
 
@@ -47,30 +47,33 @@ export const updateTask = async (req, res, next) => {
     )
       return res.status(400).json({ message: "All fields are required" });
 
-    const task = await TaskModel.findByIdAndUpdate(req.params.id, {
-      title: title,
-      customerId: customerId,
-      description: description,
-      dueDate: dueDate,
-      priority: priority,
-      status: status,
-    });
+    const task = await TaskModel.findById(req.params.id);
 
     if (!task) return res.status(404).json({ message: "Task not found" });
-    successResponse(req, task);
+
+    task.title = title;
+    task.description = description;
+    task.dueDate = dueDate;
+    task.priority = priority;
+    task.status = status;
+
+    await task.save();
+    successResponse(res, task);
   } catch (error) {
-    errorResponse(req, error.message);
+    errorResponse(res, error.message);
   }
 };
 
 export const getAllTasksByUser = async (req, res, next) => {
   try {
-    const tasks = await TaskModel.find({ userId: req.user.id });
+    const tasks = await TaskModel.find({ userId: req.user.id })
+      .populate("userId", "name")
+      .populate("customerId");
     if (!tasks) return res.status(400).json({ message: "Task not found" });
 
-    successResponse(req, tasks);
+    successResponse(res, tasks);
   } catch (error) {
-    errorResponse(req, error.message);
+    errorResponse(res, error.message);
   }
 };
 
@@ -78,16 +81,15 @@ export const getTasksBetweenUserAndCustomer = async (req, res) => {
   try {
     const tasks = await TaskModel.find({
       userId: req.user.id,
-      customerId: req.body,
-    });
+      customerId: req.params.id,
+    })
+      .populate("userId", "name")
+      .populate("customerId")
+      .sort({ createdAt: -1 });
 
-    if (!tasks) {
-      return res.status(404).json({ message: "Task not found" });
-    }
-
-    successResponse(req, tasks);
+    successResponse(res, tasks);
   } catch (error) {
-    errorResponse(req, error.message);
+    errorResponse(res, error);
   }
 };
 
@@ -98,8 +100,18 @@ export const deleteTask = async (req, res) => {
       return res.status(404).json({ message: "Task not found" });
     }
 
-    successResponse(req, task);
+    successResponse(res, task);
   } catch (error) {
-    errorResponse(req, error.message);
+    errorResponse(res, error);
+  }
+};
+
+export const getTaskById = async (req, res) => {
+  try {
+    const task = await TaskModel.findById(req.params.id);
+    if (!task) return res.status(404).json({ message: "Taks not found!" });
+    successResponse(res, task);
+  } catch (error) {
+    return errorResponse(res, error);
   }
 };

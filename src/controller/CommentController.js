@@ -35,7 +35,7 @@ export const getCommentsByCustomer = async (req, res) => {
       .populate("customerId")
       .sort({ createdAt: -1 });
 
-    return successResponse(res, comments);
+    successResponse(res, comments);
   } catch (error) {
     return errorResponse(res, error.message);
   }

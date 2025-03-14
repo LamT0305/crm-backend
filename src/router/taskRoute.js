@@ -3,6 +3,7 @@ import {
   createTask,
   deleteTask,
   getAllTasksByUser,
+  getTaskById,
   getTasksBetweenUserAndCustomer,
   updateTask,
 } from "../controller/TaskController.js";
@@ -11,11 +12,10 @@ const router = express.Router();
 
 router.use(verifyToken);
 router.route("/create-task").post(createTask);
-router.route("/update-task/:id").post(updateTask);
-router.route("/delete-task/:id").post(deleteTask);
+router.route("/update-task/:id").put(updateTask);
+router.route("/delete-task/:id").delete(deleteTask);
 router.route("/get-tasks").get(getAllTasksByUser);
-router
-  .route("/get-task-between-user-and-customer")
-  .post(getTasksBetweenUserAndCustomer);
+router.route("/get-tasks-of-customer/:id").get(getTasksBetweenUserAndCustomer);
+router.route("/get-task/:id").get(getTaskById);
 
 export default router;
