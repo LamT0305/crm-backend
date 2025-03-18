@@ -225,7 +225,8 @@ const fetchAttachments = async (emailData) => {
 
       attachments.push({
         filename: sanitizedFilename,
-        url: uploadResult.secure_url,
+        path: uploadResult.secure_url, // Add this field
+        url: uploadResult.secure_url, // Keep this for backward compatibility
         mimetype: part.mimeType,
         public_id: uploadResult.public_id,
       });
