@@ -17,10 +17,11 @@ export const sendEmail = async (req, res) => {
 
   try {
     upload.any()(req, res, async (err) => {
-      if (err)
+      if (err) {
         return res
           .status(500)
           .json({ error: "File upload failed", details: err });
+      }
 
       const { to, subject, message } = req.body;
       let attachments = [];
@@ -29,7 +30,6 @@ export const sendEmail = async (req, res) => {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      // // Upload attachments to Cloudinary (if any)
       if (req.files && req.files.length > 0) {
         for (const file of req.files) {
           const uploadResult = await new Promise((resolve, reject) => {
@@ -49,7 +49,6 @@ export const sendEmail = async (req, res) => {
         }
       }
 
-      // Construct and send email (same as before)
       let emailBody = [
         `To: ${to}`,
         "From: me",
@@ -59,23 +58,39 @@ export const sendEmail = async (req, res) => {
         "",
         "--boundary123",
         'Content-Type: text/plain; charset="UTF-8"',
+        "Content-Transfer-Encoding: 7bit",
         "",
         message,
         "",
       ];
 
+      // Handle attachments
       for (const attachment of attachments) {
-        emailBody.push(
-          "--boundary123",
-          `Content-Type: ${attachment.mimetype}; name="${attachment.filename}"`,
-          "Content-Disposition: attachment",
-          "",
-          attachment.url,
-          ""
-        );
+        try {
+          const response = await axios.get(attachment.path, {
+            responseType: "arraybuffer",
+          });
+          const base64Data = Buffer.from(response.data).toString("base64");
+
+          emailBody.push(
+            "--boundary123",
+            `Content-Type: ${attachment.mimetype}`,
+            "Content-Transfer-Encoding: base64",
+            `Content-Disposition: attachment; filename="${attachment.filename}"`,
+            "",
+            base64Data,
+            ""
+          );
+        } catch (error) {
+          console.error(
+            `Failed to process attachment: ${attachment.filename}`,
+            error
+          );
+        }
       }
 
       emailBody.push("--boundary123--");
+
       const rawMessage = Buffer.from(emailBody.join("\n"))
         .toString("base64")
         .replace(/\+/g, "-")
@@ -86,7 +101,6 @@ export const sendEmail = async (req, res) => {
         requestBody: { raw: rawMessage },
       });
 
-      // // Save email with attachment links in the database
       const sentEmail = await EmailModel.create({
         userId: req.user.id,
         to,
@@ -95,14 +109,13 @@ export const sendEmail = async (req, res) => {
         status: "sent",
         threadId: response.data.threadId,
         sentAt: new Date(),
-        attachments, // Store Cloudinary URLs
+        attachments,
       });
 
       res.status(200).json({
         success: true,
         message: "Email sent successfully!",
         email: sentEmail,
-        // req: attachments,
       });
     });
   } catch (error) {

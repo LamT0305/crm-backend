@@ -14,11 +14,10 @@ const ActivitySchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["call", "task", "note", "email"],
+      enum: ["comment", "task", "note", "email", "create_customer"],
       required: true,
     }, // Loại hoạt động
     subject: { type: String, required: true }, // Tiêu đề
-    description: { type: String }, // Mô tả hoạt động
   },
   { timestamps: true }
 );

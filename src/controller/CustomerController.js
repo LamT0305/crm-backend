@@ -30,10 +30,13 @@ export const createCustomer = async (req, res) => {
     ) {
       return res.status(400).json({ message: "All fields must be provided" });
     }
-    const userId = new mongoose.Types.ObjectId(String(req.user.id));
+
+    const isExisted = await CustomerModel.findOne({ email: email });
+    if (isExisted)
+      return res.status(400).json({ message: "Email already exists" });
 
     const customer = await CustomerModel.create({
-      userId: userId,
+      userId: req.user.id,
       firstName: firstName,
       lastName: lastName,
       email: email,
@@ -44,7 +47,7 @@ export const createCustomer = async (req, res) => {
       industry: industry,
     });
 
-    customer.populate("sourceId", "name");
+    await customer.populate("sourceId", "name");
     successResponse(res, customer);
   } catch (error) {
     errorResponse(res, error.message);

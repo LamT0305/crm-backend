@@ -4,9 +4,9 @@ import { successResponse, errorResponse } from "../utils/responseHandler.js";
 // ✅ 1. Tạo Activity
 export const createActivity = async (req, res) => {
   try {
-    const { customerId, type, subject, description } = req.body;
+    const { customerId, type, subject } = req.body;
 
-    if (!customerId || !type || !subject || !description) {
+    if (!customerId || !type || !subject) {
       return res.status(400).send("All fields are required");
     }
 
@@ -15,7 +15,6 @@ export const createActivity = async (req, res) => {
       customerId: customerId,
       type,
       subject,
-      description,
     });
 
     successResponse(res, activity);
@@ -30,7 +29,7 @@ export const getActivities = async (req, res) => {
     const activities = await ActivityModel.find({
       userId: req.user.id,
       customerId: req.params.customerId,
-    });
+    }).populate("userId", "name email");
     if (!activities) {
       return res.status(404).send("Activity not found");
     }
