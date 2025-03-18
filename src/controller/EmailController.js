@@ -9,7 +9,7 @@ import multer from "multer";
 import axios from "axios";
 
 const gmail = google.gmail({ version: "v1", auth: oauth2Client });
-const upload = multer({ storage: multer.memoryStorage() }); // Store file in memory
+const upload = multer({ storage: multer.memoryStorage() });
 
 export const sendEmail = async (req, res) => {
   if (!req.user || !req.user.id) {
@@ -113,8 +113,6 @@ export const sendEmail = async (req, res) => {
         attachments,
       });
 
-      await sentEmail.populate("userId", "email name");
-
       res.status(200).json({
         success: true,
         message: "Email sent successfully!",
@@ -135,7 +133,6 @@ export const getEmails = async (req, res) => {
     })
       .populate("userId", "email name")
       .sort({ sentAt: -1 });
-    // successResponse(res, emails);
     res.status(200).json({ message: "Success", emails: emails });
   } catch (error) {
     errorResponse(res, "Could not retrieve emails", error);
@@ -144,12 +141,12 @@ export const getEmails = async (req, res) => {
 
 export const fetchReplies = async () => {
   try {
-    const users = await UserModel.find(); // Get all users from DB
+    const users = await UserModel.find();
 
     for (const user of users) {
       console.log(`🔄 Refreshing token for user: ${user.email}`);
 
-      await refreshAccessToken(user._id); // Refresh OAuth token
+      await refreshAccessToken(user._id);
 
       const messagesList = await gmail.users.messages.list({
         userId: "me",
@@ -171,7 +168,6 @@ export const fetchReplies = async () => {
         const threadId = msgData.data.threadId;
         const sentAt = new Date(parseInt(msgData.data.internalDate));
 
-        // ✅ Check if the reply already exists
         if (await EmailModel.exists({ threadId, sentAt })) {
           console.log(`⚠️ Skipping duplicate reply: ${threadId}`);
           continue;
@@ -210,9 +206,6 @@ export const fetchReplies = async () => {
   }
 };
 
-/**
- * Fetches email attachments and saves them in cloud data
- */
 const fetchAttachments = async (emailData) => {
   const attachments = [];
   if (!emailData.payload.parts) return attachments;
@@ -229,10 +222,9 @@ const fetchAttachments = async (emailData) => {
     if (!attachmentData.data || !attachmentData.data.data) continue;
 
     const buffer = Buffer.from(attachmentData.data.data, "base64");
-    const sanitizedFilename = part.filename.replace(/[^a-zA-Z0-9._-]/g, "_"); // Sanitize filename
+    const sanitizedFilename = part.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
 
     try {
-      // ✅ Upload buffer to Cloudinary
       const uploadResult = await new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
           { resource_type: "auto", folder: "crm_attachments" },
@@ -243,9 +235,9 @@ const fetchAttachments = async (emailData) => {
 
       attachments.push({
         filename: sanitizedFilename,
-        url: uploadResult.secure_url, // ✅ Store Cloudinary URL
+        url: uploadResult.secure_url,
         mimetype: part.mimeType,
-        public_id: uploadResult.public_id, // Cloudinary file ID
+        public_id: uploadResult.public_id,
       });
     } catch (error) {
       console.error(
