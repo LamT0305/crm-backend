@@ -6,7 +6,6 @@ import { getEmailBody } from "../utils/extractEmailBody.js";
 import UserModel from "../model/UserModel.js";
 import cloudinary from "../config/cloudinary.js";
 import multer from "multer";
-import axios from "axios";
 
 const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 const upload = multer({ storage: multer.memoryStorage() });
@@ -31,25 +30,6 @@ export const sendEmail = async (req, res) => {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      if (req.files && req.files.length > 0) {
-        for (const file of req.files) {
-          const uploadResult = await new Promise((resolve, reject) => {
-            const stream = cloudinary.uploader.upload_stream(
-              { resource_type: "auto", folder: "crm_attachments" },
-              (error, result) => (error ? reject(error) : resolve(result))
-            );
-            stream.end(file.buffer);
-          });
-
-          attachments.push({
-            filename: file.originalname,
-            path: uploadResult.secure_url,
-            mimetype: file.mimetype,
-            public_id: uploadResult.public_id,
-          });
-        }
-      }
-
       let emailBody = [
         `To: ${to}`,
         "From: me",
@@ -65,28 +45,36 @@ export const sendEmail = async (req, res) => {
         "",
       ];
 
-      // Handle attachments
-      for (const attachment of attachments) {
-        try {
-          const response = await axios.get(attachment.path, {
-            responseType: "arraybuffer",
-          });
-          const base64Data = Buffer.from(response.data).toString("base64");
-
+      // Handle attachments using original file buffer
+      if (req.files && req.files.length > 0) {
+        for (const file of req.files) {
+          // First, add the file to email body
+          const base64Data = file.buffer.toString("base64");
           emailBody.push(
             "--boundary123",
-            `Content-Type: ${attachment.mimetype}`,
+            `Content-Type: ${file.mimetype}`,
             "Content-Transfer-Encoding: base64",
-            `Content-Disposition: attachment; filename="${attachment.filename}"`,
+            `Content-Disposition: attachment; filename="${file.originalname}"`,
             "",
             base64Data,
             ""
           );
-        } catch (error) {
-          console.error(
-            `Failed to process attachment: ${attachment.filename}`,
-            error
-          );
+
+          // Then upload to Cloudinary for storage
+          const uploadResult = await new Promise((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream(
+              { resource_type: "auto", folder: "crm_attachments" },
+              (error, result) => (error ? reject(error) : resolve(result))
+            );
+            stream.end(file.buffer);
+          });
+
+          attachments.push({
+            filename: file.originalname,
+            path: uploadResult.secure_url,
+            mimetype: file.mimetype,
+            public_id: uploadResult.public_id,
+          });
         }
       }
 
@@ -112,6 +100,8 @@ export const sendEmail = async (req, res) => {
         sentAt: new Date(),
         attachments,
       });
+
+      await sentEmail.populate("userId", "email name");
 
       res.status(200).json({
         success: true,
