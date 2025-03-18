@@ -6,6 +6,7 @@ import { getEmailBody } from "../utils/extractEmailBody.js";
 import UserModel from "../model/UserModel.js";
 import cloudinary from "../config/cloudinary.js";
 import multer from "multer";
+import axios from "axios";
 
 const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 const upload = multer({ storage: multer.memoryStorage() }); // Store file in memory
@@ -111,6 +112,8 @@ export const sendEmail = async (req, res) => {
         sentAt: new Date(),
         attachments,
       });
+
+      await sentEmail.populate("userId", "email name");
 
       res.status(200).json({
         success: true,
