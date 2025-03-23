@@ -255,13 +255,20 @@ export const handleNewEmail = async (userId, emailData) => {
   try {
     const io = getIO();
 
-    // Create notification for new email
+    // Extract email address from the "from" field
+    const emailRegex = /<([^>]+)>/;
+    const emailMatch = emailData.from.match(emailRegex);
+    const emailAddress = emailMatch ? emailMatch[1] : emailData.from;
+
+    // Create notification for new email with just the email address
     const notification = await NotificationModel.create({
       userId,
-      message: `New email from ${emailData.from}: ${emailData.subject}`,
+      message: `New email from ${emailAddress}: ${emailData.subject}`,
       status: "Unread",
       type: "email",
     });
+
+    await notification.populate("userId", "email name");
 
     // Emit to specific user's room
     io.to(`user_${userId}`).emit("newEmail", {
