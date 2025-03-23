@@ -13,12 +13,61 @@ import CustomerModel from "../model/CustomerModel.js";
 const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 const upload = multer({ storage: multer.memoryStorage() });
 
-export const sendEmail = async (req, res) => {
-  if (!req.user || !req.user.id) {
-    return res.status(401).json({ error: "User authentication failed." });
-  }
+const extractEmailAddress = (from) => {
+  const emailRegex = /<([^>]+)>/;
+  const emailMatch = from.match(emailRegex);
+  return emailMatch ? emailMatch[1] : from;
+};
 
+const uploadToCloudinary = async (buffer, filename) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { resource_type: "auto", folder: "crm_attachments" },
+      (error, result) => (error ? reject(error) : resolve(result))
+    );
+    stream.end(buffer);
+  });
+};
+
+const createEmailBody = (to, subject, message, files = []) => {
+  const emailBody = [
+    `To: ${to}`,
+    "From: me",
+    `Subject: ${subject}`,
+    "MIME-Version: 1.0",
+    'Content-Type: multipart/mixed; boundary="boundary123"',
+    "",
+    "--boundary123",
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: 7bit",
+    "",
+    message,
+    "",
+  ];
+
+  files.forEach((file) => {
+    const base64Data = file.buffer.toString("base64");
+    emailBody.push(
+      "--boundary123",
+      `Content-Type: ${file.mimetype}`,
+      "Content-Transfer-Encoding: base64",
+      `Content-Disposition: attachment; filename="${file.originalname}"`,
+      "",
+      base64Data,
+      ""
+    );
+  });
+
+  emailBody.push("--boundary123--");
+  return emailBody;
+};
+
+export const sendEmail = async (req, res) => {
   try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: "User authentication failed." });
+    }
+
     upload.any()(req, res, async (err) => {
       if (err) {
         return res
@@ -27,61 +76,36 @@ export const sendEmail = async (req, res) => {
       }
 
       const { to, subject, message } = req.body;
-      let attachments = [];
-
       if (!to || !subject || !message) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      let emailBody = [
-        `To: ${to}`,
-        "From: me",
-        `Subject: ${subject}`,
-        "MIME-Version: 1.0",
-        'Content-Type: multipart/mixed; boundary="boundary123"',
-        "",
-        "--boundary123",
-        'Content-Type: text/plain; charset="UTF-8"',
-        "Content-Transfer-Encoding: 7bit",
-        "",
-        message,
-        "",
-      ];
+      const attachments = [];
+      const emailBody = createEmailBody(to, subject, message, req.files);
 
-      // Handle attachments using original file buffer
-      if (req.files && req.files.length > 0) {
-        for (const file of req.files) {
-          // First, add the file to email body
-          const base64Data = file.buffer.toString("base64");
-          emailBody.push(
-            "--boundary123",
-            `Content-Type: ${file.mimetype}`,
-            "Content-Transfer-Encoding: base64",
-            `Content-Disposition: attachment; filename="${file.originalname}"`,
-            "",
-            base64Data,
-            ""
-          );
-
-          // Then upload to Cloudinary for storage
-          const uploadResult = await new Promise((resolve, reject) => {
-            const stream = cloudinary.uploader.upload_stream(
-              { resource_type: "auto", folder: "crm_attachments" },
-              (error, result) => (error ? reject(error) : resolve(result))
-            );
-            stream.end(file.buffer);
-          });
-
-          attachments.push({
-            filename: file.originalname,
-            path: uploadResult.secure_url,
-            mimetype: file.mimetype,
-            public_id: uploadResult.public_id,
-          });
-        }
+      if (req.files?.length > 0) {
+        await Promise.all(
+          req.files.map(async (file) => {
+            try {
+              const uploadResult = await uploadToCloudinary(
+                file.buffer,
+                file.originalname
+              );
+              attachments.push({
+                filename: file.originalname,
+                path: uploadResult.secure_url,
+                mimetype: file.mimetype,
+                public_id: uploadResult.public_id,
+              });
+            } catch (error) {
+              console.error(
+                `Error uploading attachment: ${file.originalname}`,
+                error
+              );
+            }
+          })
+        );
       }
-
-      emailBody.push("--boundary123--");
 
       const rawMessage = Buffer.from(emailBody.join("\n"))
         .toString("base64")
@@ -100,12 +124,13 @@ export const sendEmail = async (req, res) => {
         message,
         status: "sent",
         threadId: response.data.threadId,
+        messageId: response.data.id,
         sentAt: new Date(),
         attachments,
+        isDeleted: false,
       });
 
       await sentEmail.populate("userId", "email name");
-
       res.status(200).json({
         success: true,
         message: "Email sent successfully!",
@@ -113,6 +138,7 @@ export const sendEmail = async (req, res) => {
       });
     });
   } catch (error) {
+    console.error("Send email error:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -123,177 +149,164 @@ export const getEmails = async (req, res) => {
     const emails = await EmailModel.find({
       userId: req.user.id,
       to: recipient,
+      isDeleted: { $ne: true },
     })
       .populate("userId", "email name")
-      .sort({ sentAt: -1 });
-    res.status(200).json({ message: "Success", emails: emails });
+      .sort({ sentAt: -1 })
+      .lean();
+
+    res.status(200).json({ success: true, emails });
   } catch (error) {
+    console.error("Get emails error:", error);
     errorResponse(res, "Could not retrieve emails", error);
   }
 };
 
 export const fetchReplies = async () => {
   try {
-    const users = await UserModel.find();
-
-    for (const user of users) {
-      console.log(`🔄 Refreshing token for user: ${user.email}`);
-
-      await refreshAccessToken(user._id);
-
-      const messagesList = await gmail.users.messages.list({
-        userId: "me",
-        labelIds: ["INBOX"],
-        maxResults: 20,
-      });
-
-      if (!messagesList.data.messages) {
-        console.log(`📭 No new replies for user: ${user.email}`);
-        continue;
-      }
-
-      for (const msg of messagesList.data.messages) {
-        const msgData = await gmail.users.messages.get({
-          userId: "me",
-          id: msg.id,
-        });
-
-        const threadId = msgData.data.threadId;
-        const sentAt = new Date(parseInt(msgData.data.internalDate));
-
-        if (await EmailModel.exists({ threadId, sentAt })) {
-          console.log(`⚠️ Skipping duplicate reply: ${threadId}`);
-          continue;
-        }
-
-        const headers = msgData.data.payload.headers;
-        const subject =
-          headers.find((h) => h.name === "Subject")?.value || "No Subject";
-        const from =
-          headers.find((h) => h.name === "From")?.value || "Unknown Sender";
-        const body = getEmailBody(msgData.data.payload);
-        const attachments = await fetchAttachments(msgData.data);
-
-        // Extract email from the "from" field
-        const emailRegex = /<([^>]+)>/;
-        const emailMatch = from.match(emailRegex);
-        const senderEmail = emailMatch ? emailMatch[1] : from;
-
-        const existingSentEmail = await EmailModel.findOne({ threadId });
-
-        if (existingSentEmail) {
-          await EmailModel.create({
-            userId: existingSentEmail.userId,
-            to: existingSentEmail.to,
-            subject,
-            message: body,
-            status: "received",
-            threadId,
-            sentAt,
-            attachments,
+    const users = await UserModel.find().lean();
+    await Promise.all(
+      users.map(async (user) => {
+        try {
+          await refreshAccessToken(user._id);
+          const messagesList = await gmail.users.messages.list({
+            userId: "me",
+            labelIds: ["INBOX"],
+            maxResults: 20,
           });
 
-          // add notification real-time
+          if (!messagesList.data.messages) return;
 
-          await handleNewEmail(existingSentEmail.userId, {
-            from,
-            subject,
-            threadId,
-          });
+          await Promise.all(
+            messagesList.data.messages.map(async (msg) => {
+              try {
+                const msgData = await gmail.users.messages.get({
+                  userId: "me",
+                  id: msg.id,
+                });
 
-          console.log(`📩 Stored reply for user: ${existingSentEmail.userId}`);
-        } else {
-          // Check if sender is an existing customer
-          const customer = await CustomerModel.findOne({ email: senderEmail });
+                const messageId = msgData.data.id;
+                const existingEmail = await EmailModel.findOne({
+                  messageId,
+                  isDeleted: { $ne: true },
+                }).lean();
 
-          if (customer) {
-            // Store new email from customer
-            await EmailModel.create({
-              userId: user._id,
-              to: customer.email,
-              subject,
-              message: body,
-              status: "received",
-              threadId,
-              sentAt,
-              attachments,
-            });
+                if (existingEmail) return;
 
-            await handleNewEmail(user._id, {
-              from,
-              subject,
-              threadId,
-            });
+                const headers = msgData.data.payload.headers;
+                const subject =
+                  headers.find((h) => h.name === "Subject")?.value ||
+                  "No Subject";
+                const from =
+                  headers.find((h) => h.name === "From")?.value ||
+                  "Unknown Sender";
+                const senderEmail = extractEmailAddress(from);
+                const threadId = msgData.data.threadId;
+                const sentAt = new Date(parseInt(msgData.data.internalDate));
 
-            console.log(`📨 Stored new email from customer: ${senderEmail}`);
-          } else {
-            console.log(`⚠️ Skipping email from non-customer: ${senderEmail}`);
-          }
+                const [existingSentEmail, customer] = await Promise.all([
+                  EmailModel.findOne({
+                    threadId,
+                    isDeleted: { $ne: true },
+                  }).lean(),
+                  CustomerModel.findOne({
+                    email: senderEmail,
+                  }).lean(),
+                ]);
+
+                if (!existingSentEmail && !customer) {
+                  console.log(
+                    `⚠️ Skipping email from non-customer: ${senderEmail}`
+                  );
+                  return;
+                }
+
+                const body = getEmailBody(msgData.data.payload);
+                const attachments = await fetchAttachments(msgData.data);
+
+                const newEmail = await EmailModel.create({
+                  userId: existingSentEmail
+                    ? existingSentEmail.userId
+                    : user._id,
+                  to: existingSentEmail ? existingSentEmail.to : user.email,
+                  subject,
+                  message: body,
+                  status: "received",
+                  threadId,
+                  messageId,
+                  sentAt,
+                  attachments,
+                  isDeleted: false,
+                });
+
+                await handleNewEmail(newEmail.userId, {
+                  from,
+                  subject,
+                  threadId,
+                });
+                console.log(`📩 Stored email from: ${senderEmail}`);
+              } catch (error) {
+                console.error(`Error processing message ${msg.id}:`, error);
+              }
+            })
+          );
+        } catch (error) {
+          console.error(`Error processing user ${user.email}:`, error);
         }
-      }
-    }
-
-    console.log("✅ All replies fetched and stored.");
+      })
+    );
+    console.log("✅ All messages processed.");
   } catch (error) {
-    console.error("❌ Error fetching replies:", error);
+    console.error("❌ Error fetching messages:", error);
   }
 };
 
 const fetchAttachments = async (emailData) => {
-  const attachments = [];
-  if (!emailData.payload.parts) return attachments;
+  if (!emailData.payload.parts) return [];
 
-  for (const part of emailData.payload.parts) {
-    if (!part.body || !part.body.attachmentId) continue;
+  const attachmentPromises = emailData.payload.parts
+    .filter((part) => part.body?.attachmentId)
+    .map(async (part) => {
+      try {
+        const attachmentData = await gmail.users.messages.attachments.get({
+          userId: "me",
+          messageId: emailData.id,
+          id: part.body.attachmentId,
+        });
 
-    const attachmentData = await gmail.users.messages.attachments.get({
-      userId: "me",
-      messageId: emailData.id,
-      id: part.body.attachmentId,
+        if (!attachmentData.data?.data) return null;
+
+        const buffer = Buffer.from(attachmentData.data.data, "base64");
+        const sanitizedFilename = part.filename.replace(
+          /[^a-zA-Z0-9._-]/g,
+          "_"
+        );
+        const uploadResult = await uploadToCloudinary(
+          buffer,
+          sanitizedFilename
+        );
+
+        return {
+          filename: sanitizedFilename,
+          path: uploadResult.secure_url,
+          mimetype: part.mimeType,
+          public_id: uploadResult.public_id,
+        };
+      } catch (error) {
+        console.error(`Error processing attachment: ${part.filename}`, error);
+        return null;
+      }
     });
 
-    if (!attachmentData.data || !attachmentData.data.data) continue;
-
-    const buffer = Buffer.from(attachmentData.data.data, "base64");
-    const sanitizedFilename = part.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-
-    try {
-      const uploadResult = await new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { resource_type: "auto", folder: "crm_attachments" },
-          (error, result) => (error ? reject(error) : resolve(result))
-        );
-        stream.end(buffer);
-      });
-
-      attachments.push({
-        filename: sanitizedFilename,
-        path: uploadResult.secure_url, // Add this field
-        url: uploadResult.secure_url, // Keep this for backward compatibility
-        mimetype: part.mimeType,
-        public_id: uploadResult.public_id,
-      });
-    } catch (error) {
-      console.error(
-        `❌ Error uploading attachment: ${sanitizedFilename}`,
-        error
-      );
-    }
-  }
-
-  return attachments;
+  const results = await Promise.all(attachmentPromises);
+  return results.filter(Boolean);
 };
 
 export const handleNewEmail = async (userId, emailData) => {
   try {
     const io = getIO();
+    const emailAddress = extractEmailAddress(emailData.from);
 
-    // Extract email address from the "from" field
-    const emailRegex = /<([^>]+)>/;
-    const emailMatch = emailData.from.match(emailRegex);
-    const emailAddress = emailMatch ? emailMatch[1] : emailData.from;
-
-    // Create notification for new email with just the email address
     const notification = await NotificationModel.create({
       userId,
       message: `${emailAddress} has sent an email`,
@@ -304,15 +317,14 @@ export const handleNewEmail = async (userId, emailData) => {
 
     await notification.populate("userId", "email name");
 
-    const customer = await CustomerModel.findOne({ email: emailAddress });
+    const customer = await CustomerModel.findOne({
+      email: emailAddress,
+    }).lean();
+
     if (customer) {
-      // Emit to specific user's room
       io.to(`user_${userId}`).emit("newEmail", {
         type: "email",
-        data: {
-          notification,
-          customerId: customer._id,
-        },
+        data: { notification, customerId: customer._id },
       });
 
       io.to(`user_${userId}`).emit("updateEmails", {
@@ -330,18 +342,36 @@ export const handleNewEmail = async (userId, emailData) => {
 export const handleDeleteEmail = async (req, res) => {
   try {
     const emailId = req.params.id;
-    const email = await EmailModel.findById(emailId);
+    const email = await EmailModel.findById(emailId).lean();
+
     if (!email) {
       return res.status(404).json({ error: "Email not found" });
     }
-    // Delete attachments from Cloudinary
-    for (const attachment of email.attachments) {
-      await cloudinary.uploader.destroy(attachment.public_id);
-    }
-    // Delete the email from the database
-    await EmailModel.findByIdAndDelete(emailId);
-    return res.status(200).json({ message: "Email deleted successfully" });
+
+    await Promise.all(
+      email.attachments.map((attachment) =>
+        cloudinary.uploader.destroy(attachment.public_id)
+      )
+    );
+
+    await EmailModel.findByIdAndUpdate(
+      emailId,
+      {
+        isDeleted: true,
+        deletedAt: new Date(),
+      },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Email deleted successfully",
+    });
   } catch (error) {
-    return res.status(500).json({ error: "Internal Server Error", error });
+    console.error("Delete email error:", error);
+    return res.status(500).json({
+      error: "Internal Server Error",
+      details: error.message,
+    });
   }
 };
