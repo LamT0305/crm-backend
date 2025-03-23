@@ -174,6 +174,11 @@ export const fetchReplies = async () => {
         const body = getEmailBody(msgData.data.payload);
         const attachments = await fetchAttachments(msgData.data);
 
+        // Extract email from the "from" field
+        const emailRegex = /<([^>]+)>/;
+        const emailMatch = from.match(emailRegex);
+        const senderEmail = emailMatch ? emailMatch[1] : from;
+
         const existingSentEmail = await EmailModel.findOne({ threadId });
 
         if (existingSentEmail) {
@@ -197,6 +202,33 @@ export const fetchReplies = async () => {
           });
 
           console.log(`📩 Stored reply for user: ${existingSentEmail.userId}`);
+        } else {
+          // Check if sender is an existing customer
+          const customer = await CustomerModel.findOne({ email: senderEmail });
+
+          if (customer) {
+            // Store new email from customer
+            await EmailModel.create({
+              userId: user._id,
+              to: customer.email,
+              subject,
+              message: body,
+              status: "received",
+              threadId,
+              sentAt,
+              attachments,
+            });
+
+            await handleNewEmail(user._id, {
+              from,
+              subject,
+              threadId,
+            });
+
+            console.log(`📨 Stored new email from customer: ${senderEmail}`);
+          } else {
+            console.log(`⚠️ Skipping email from non-customer: ${senderEmail}`);
+          }
         }
       }
     }
@@ -285,7 +317,7 @@ export const handleNewEmail = async (userId, emailData) => {
 
       io.to(`user_${userId}`).emit("updateEmails", {
         customerId: customer._id,
-      })
+      });
     }
 
     return notification;
