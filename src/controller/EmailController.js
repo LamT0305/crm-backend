@@ -186,51 +186,52 @@ export const fetchReplies = async () => {
                 });
 
                 const messageId = msgData.data.id;
-                const threadId = msgData.data.threadId;
-                const sentAt = new Date(parseInt(msgData.data.internalDate));
+                const headers = msgData.data.payload.headers;
+                const from =
+                  headers.find((h) => h.name === "From")?.value ||
+                  "Unknown Sender";
+                const senderEmail = extractEmailAddress(from);
 
-                // Check for existing email with same messageId or (threadId and sentAt)
+                // First check if sender is a customer in the system
+                const customer = await CustomerModel.findOne({
+                  email: senderEmail,
+                }).lean();
+
+                if (!customer) {
+                  console.log(`⚠️ Skipping non-customer email: ${senderEmail}`);
+                  return;
+                }
+
+                // Then check if this email was already processed
                 const existingEmail = await EmailModel.findOne({
-                  $or: [
-                    { messageId },
-                    { 
-                      threadId,
-                      sentAt,
-                      isDeleted: { $ne: true }
-                    }
-                  ]
+                  messageId,
                 }).lean();
 
                 if (existingEmail) {
-                  console.log(`⚠️ Skipping duplicate email: ${messageId}`);
+                  console.log(
+                    `⚠️ Skipping already processed email: ${messageId}`
+                  );
                   return;
                 }
 
-                const headers = msgData.data.payload.headers;
-                const subject = headers.find((h) => h.name === "Subject")?.value || "No Subject";
-                const from = headers.find((h) => h.name === "From")?.value || "Unknown Sender";
-                const senderEmail = extractEmailAddress(from);
+                const subject =
+                  headers.find((h) => h.name === "Subject")?.value ||
+                  "No Subject";
+                const threadId = msgData.data.threadId;
+                const sentAt = new Date(parseInt(msgData.data.internalDate));
 
-                const [existingSentEmail, customer] = await Promise.all([
-                  EmailModel.findOne({
-                    threadId,
-                    isDeleted: { $ne: true },
-                  }).lean(),
-                  CustomerModel.findOne({
-                    email: senderEmail,
-                  }).lean(),
-                ]);
-
-                if (!existingSentEmail && !customer) {
-                  console.log(`⚠️ Skipping email from non-customer: ${senderEmail}`);
-                  return;
-                }
+                const existingSentEmail = await EmailModel.findOne({
+                  threadId,
+                  isDeleted: { $ne: true },
+                }).lean();
 
                 const body = getEmailBody(msgData.data.payload);
                 const attachments = await fetchAttachments(msgData.data);
 
                 const newEmail = await EmailModel.create({
-                  userId: existingSentEmail ? existingSentEmail.userId : user._id,
+                  userId: existingSentEmail
+                    ? existingSentEmail.userId
+                    : user._id,
                   to: existingSentEmail ? existingSentEmail.to : user.email,
                   subject,
                   message: body,
@@ -247,12 +248,8 @@ export const fetchReplies = async () => {
                   subject,
                   threadId,
                 });
-                console.log(`📩 Stored email from: ${senderEmail}`);
+                console.log(`📩 Stored email from customer: ${senderEmail}`);
               } catch (error) {
-                if (error.code === 11000) {
-                  console.log(`⚠️ Duplicate email detected, skipping: ${msg.id}`);
-                  return;
-                }
                 console.error(`Error processing message ${msg.id}:`, error);
               }
             })
@@ -314,7 +311,7 @@ export const handleNewEmail = async (userId, emailData) => {
     // Check if email exists and is not deleted
     const email = await EmailModel.findOne({
       threadId: emailData.threadId,
-      isDeleted: { $ne: true }
+      isDeleted: { $ne: true },
     }).lean();
 
     if (!email) {
