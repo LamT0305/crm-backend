@@ -304,6 +304,17 @@ const fetchAttachments = async (emailData) => {
 
 export const handleNewEmail = async (userId, emailData) => {
   try {
+    // Check if email exists and is not deleted
+    const email = await EmailModel.findOne({
+      threadId: emailData.threadId,
+      isDeleted: { $ne: true }
+    }).lean();
+
+    if (!email) {
+      console.log("Email not found or deleted, skipping notification");
+      return null;
+    }
+
     const io = getIO();
     const emailAddress = extractEmailAddress(emailData.from);
 
