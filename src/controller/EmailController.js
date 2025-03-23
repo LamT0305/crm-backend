@@ -326,3 +326,22 @@ export const handleNewEmail = async (userId, emailData) => {
     throw error;
   }
 };
+
+export const handleDeleteEmail = async (req, res) => {
+  try {
+    const emailId = req.params.id;
+    const email = await EmailModel.findById(emailId);
+    if (!email) {
+      return res.status(404).json({ error: "Email not found" });
+    }
+    // Delete attachments from Cloudinary
+    for (const attachment of email.attachments) {
+      await cloudinary.uploader.destroy(attachment.public_id);
+    }
+    // Delete the email from the database
+    await EmailModel.findByIdAndDelete(emailId);
+    return res.status(200).json({ message: "Email deleted successfully" });
+  } catch (error) {
+    return res.status(500).json({ error: "Internal Server Error", error });
+  }
+};
