@@ -186,23 +186,30 @@ export const fetchReplies = async () => {
                 });
 
                 const messageId = msgData.data.id;
-                const existingEmail = await EmailModel.findOne({
-                  messageId,
-                  isDeleted: { $ne: true },
-                }).lean();
-
-                if (existingEmail) return;
-
-                const headers = msgData.data.payload.headers;
-                const subject =
-                  headers.find((h) => h.name === "Subject")?.value ||
-                  "No Subject";
-                const from =
-                  headers.find((h) => h.name === "From")?.value ||
-                  "Unknown Sender";
-                const senderEmail = extractEmailAddress(from);
                 const threadId = msgData.data.threadId;
                 const sentAt = new Date(parseInt(msgData.data.internalDate));
+
+                // Check for existing email with same messageId or (threadId and sentAt)
+                const existingEmail = await EmailModel.findOne({
+                  $or: [
+                    { messageId },
+                    { 
+                      threadId,
+                      sentAt,
+                      isDeleted: { $ne: true }
+                    }
+                  ]
+                }).lean();
+
+                if (existingEmail) {
+                  console.log(`⚠️ Skipping duplicate email: ${messageId}`);
+                  return;
+                }
+
+                const headers = msgData.data.payload.headers;
+                const subject = headers.find((h) => h.name === "Subject")?.value || "No Subject";
+                const from = headers.find((h) => h.name === "From")?.value || "Unknown Sender";
+                const senderEmail = extractEmailAddress(from);
 
                 const [existingSentEmail, customer] = await Promise.all([
                   EmailModel.findOne({
@@ -215,9 +222,7 @@ export const fetchReplies = async () => {
                 ]);
 
                 if (!existingSentEmail && !customer) {
-                  console.log(
-                    `⚠️ Skipping email from non-customer: ${senderEmail}`
-                  );
+                  console.log(`⚠️ Skipping email from non-customer: ${senderEmail}`);
                   return;
                 }
 
@@ -225,9 +230,7 @@ export const fetchReplies = async () => {
                 const attachments = await fetchAttachments(msgData.data);
 
                 const newEmail = await EmailModel.create({
-                  userId: existingSentEmail
-                    ? existingSentEmail.userId
-                    : user._id,
+                  userId: existingSentEmail ? existingSentEmail.userId : user._id,
                   to: existingSentEmail ? existingSentEmail.to : user.email,
                   subject,
                   message: body,
@@ -246,6 +249,10 @@ export const fetchReplies = async () => {
                 });
                 console.log(`📩 Stored email from: ${senderEmail}`);
               } catch (error) {
+                if (error.code === 11000) {
+                  console.log(`⚠️ Duplicate email detected, skipping: ${msg.id}`);
+                  return;
+                }
                 console.error(`Error processing message ${msg.id}:`, error);
               }
             })
