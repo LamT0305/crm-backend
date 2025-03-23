@@ -8,6 +8,7 @@ import cloudinary from "../config/cloudinary.js";
 import multer from "multer";
 import { getIO } from "../socket.js";
 import NotificationModel from "../model/NotificationModel.js";
+import CustomerModel from "../model/CustomerModel.js";
 
 const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 const upload = multer({ storage: multer.memoryStorage() });
@@ -263,7 +264,7 @@ export const handleNewEmail = async (userId, emailData) => {
     // Create notification for new email with just the email address
     const notification = await NotificationModel.create({
       userId,
-      message: `${emailData.subject}`,
+      message: `${emailAddress} has sent an email`,
       title: `New Email: ${emailData.subject}`,
       status: "Unread",
       type: "email",
@@ -271,14 +272,17 @@ export const handleNewEmail = async (userId, emailData) => {
 
     await notification.populate("userId", "email name");
 
-    // Emit to specific user's room
-    io.to(`user_${userId}`).emit("newEmail", {
-      type: "email",
-      data: {
-        notification,
-        email: emailData,
-      },
-    });
+    const customer = await CustomerModel.findOne({ email: emailAddress });
+    if (customer) {
+      // Emit to specific user's room
+      io.to(`user_${userId}`).emit("newEmail", {
+        type: "email",
+        data: {
+          notification,
+          customerId: customer._id,
+        },
+      });
+    }
 
     return notification;
   } catch (error) {
