@@ -282,6 +282,10 @@ export const handleNewEmail = async (userId, emailData) => {
           customerId: customer._id,
         },
       });
+
+      io.to(`user_${userId}`).emit("updateEmails", {
+        customerId: customer._id,
+      })
     }
 
     return notification;
