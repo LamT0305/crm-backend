@@ -263,7 +263,8 @@ export const handleNewEmail = async (userId, emailData) => {
     // Create notification for new email with just the email address
     const notification = await NotificationModel.create({
       userId,
-      message: `New email from ${emailAddress}: ${emailData.subject}`,
+      message: `${emailData.subject}`,
+      title: `New Email: ${emailData.subject}`,
       status: "Unread",
       type: "email",
     });

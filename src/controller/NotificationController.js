@@ -3,7 +3,7 @@ import NotificationModel from "../model/NotificationModel.js";
 // Create a new notification
 export const createNotification = async (req, res) => {
   try {
-    const { message } = req.body;
+    const { title, message } = req.body;
     if (!message) {
       return res.status(400).json({
         status: "error",
@@ -12,6 +12,7 @@ export const createNotification = async (req, res) => {
     }
     const notification = await NotificationModel.create({
       userId: req.user.id,
+      title: title || "Notification",
       message: message,
       status: "Unread",
     });
@@ -46,34 +47,6 @@ export const getNotifications = async (req, res) => {
   }
 };
 
-// Create email notification
-export const createEmailNotification = async (req, res) => {
-  try {
-    const { emailData } = req.body;
-    const userId = req.user.id;
-
-    const notification = await NotificationModel.create({
-      userId,
-      message: `New email from ${emailData.from}: ${emailData.subject}`,
-      status: "Unread",
-    });
-
-    req.io.emit("notification", {
-      type: "email",
-      data: notification,
-    });
-
-    res.status(200).json({
-      status: "success",
-      data: notification,
-    });
-  } catch (error) {
-    res.status(400).json({
-      status: "error",
-      message: error.message,
-    });
-  }
-};
 
 // Delete notification
 export const deleteNotification = async (req, res) => {
