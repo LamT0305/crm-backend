@@ -271,3 +271,29 @@ export const getDealById = async (req, res) => {
     errorResponse(res, error.message);
   }
 };
+
+export const getAllDealsByCustomerId = async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: "Invalid customer ID format" });
+    }
+
+    const deals = await DealModel.find({ customerId: req.params.id })
+      .populate([
+        populateOptions.customer,
+        populateOptions.products,
+        populateOptions.quotation,
+        populateOptions.user,
+      ])
+      .sort({ createdAt: -1 })
+      .lean();
+
+    successResponse(res, {
+      deals,
+      total: deals.length,
+    });
+  } catch (error) {
+    console.error("Get Deals By Customer Error:", error);
+    errorResponse(res, error.message);
+  }
+};

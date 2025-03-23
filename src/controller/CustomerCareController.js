@@ -67,7 +67,7 @@ export const getCustomerCareByCustomer = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    if (!interactions.length) {
+    if (!interactions) {
       return res.status(404).json({
         message: "No interactions found for this customer",
       });
