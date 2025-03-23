@@ -2,7 +2,6 @@ import express from "express";
 import {
   createNotification,
   getNotifications,
-  createEmailNotification,
   deleteNotification,
   markNotificationAsRead,
   getUnreadNotificationsCount,
@@ -16,9 +15,8 @@ const router = express.Router();
 router.use(verifyToken);
 
 // Notification routes
-router.post("/", createNotification);
+// router.post("/", createNotification);
 router.get("/", getNotifications);
-router.post("/email", createEmailNotification);
 router.delete("/:id", deleteNotification);
 router.put("/:id/read", markNotificationAsRead);
 router.get("/unread/count", getUnreadNotificationsCount);
