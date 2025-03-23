@@ -220,19 +220,12 @@ export const fetchReplies = async () => {
                 const threadId = msgData.data.threadId;
                 const sentAt = new Date(parseInt(msgData.data.internalDate));
 
-                const existingSentEmail = await EmailModel.findOne({
-                  threadId,
-                  isDeleted: { $ne: true },
-                }).lean();
-
                 const body = getEmailBody(msgData.data.payload);
                 const attachments = await fetchAttachments(msgData.data);
 
                 const newEmail = await EmailModel.create({
-                  userId: existingSentEmail
-                    ? existingSentEmail.userId
-                    : user._id,
-                  to: existingSentEmail ? existingSentEmail.to : user.email,
+                  userId: user._id,
+                  to: senderEmail,
                   subject,
                   message: body,
                   status: "received",
