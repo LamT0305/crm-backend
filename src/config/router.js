@@ -13,6 +13,7 @@ import customerCareRoute from "../router/customerCareRoute.js";
 import uploadRoute from "../router/uploadRoute.js";
 import commentRoute from "../router/commentRoute.js";
 import notificationRoute from "../router/notificationRoute.js";
+import analyticsRoute from "../router/analyticsRoute.js";
 
 export const appRouter = (app) => {
   app.use("/api/v1/auth", authRouter);
@@ -30,4 +31,5 @@ export const appRouter = (app) => {
   app.use("/api/v1/upload", uploadRoute);
   app.use("/api/v1/comment", commentRoute);
   app.use("/api/v1/notification", notificationRoute);
+  app.use("/api/v1/analytic", analyticsRoute);
 };
