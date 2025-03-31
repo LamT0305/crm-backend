@@ -1,7 +1,11 @@
 import CommentModel from "../model/CommentModel.js";
 import { successResponse, errorResponse } from "../utils/responseHandler.js";
 
-// Create a new comment
+const populateOptions = {
+  user: { path: "userId", select: "name email" },
+  customer: { path: "customerId", select: "firstName lastName email" },
+};
+
 export const createComment = async (req, res) => {
   try {
     const { customerId, content } = req.body;
@@ -15,24 +19,27 @@ export const createComment = async (req, res) => {
       userId,
       customerId,
       content,
+      workspace: req.workspaceId,
     });
 
-    (await newComment.populate("userId")).populate("customerId");
-    return res.status(200).json({ message: "success", comment: newComment });
+    const populatedComment = await newComment
+      .populate(populateOptions.user)
+      .populate(populateOptions.customer);
+
+    return successResponse(res, populatedComment);
   } catch (error) {
-    return errorResponse(res, error);
+    return errorResponse(res, error.message);
   }
 };
 
-// Get all comments for a customer
 export const getCommentsByCustomer = async (req, res) => {
   try {
     const comments = await CommentModel.find({
-      userId: req.user.id,
       customerId: req.params.id,
+      workspace: req.workspaceId,
     })
-      .populate("userId", "name email")
-      .populate("customerId")
+      .populate(populateOptions.user)
+      .populate(populateOptions.customer)
       .sort({ createdAt: -1 });
 
     successResponse(res, comments);
@@ -41,26 +48,29 @@ export const getCommentsByCustomer = async (req, res) => {
   }
 };
 
-// Delete a comment
 export const deleteComment = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const comment = await CommentModel.findOne({
+      _id: req.params.id,
+      workspace: req.workspaceId,
+    });
 
-    const comment = await CommentModel.findById(req.params.id);
     if (!comment) {
       return res.status(404).json({ message: "Comment not found" });
     }
 
     // Ensure only the comment creator can delete it
-    if (comment.userId.toString() !== userId) {
-      return res
-        .status(403)
-        .json({ message: "Unauthorized to delete this comment" });
+    if (comment.userId.toString() !== req.user.id) {
+      return res.status(403).json({
+        message: "Unauthorized to delete this comment",
+      });
     }
 
-    await CommentModel.findByIdAndDelete(req.params.id);
-    return successResponse(res, comment);
+    await comment.deleteOne();
+    return successResponse(res, {
+      message: "Comment deleted successfully",
+    });
   } catch (error) {
-    return errorResponse(res, error);
+    return errorResponse(res, error.message);
   }
 };

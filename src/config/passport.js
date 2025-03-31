@@ -30,6 +30,7 @@ passport.use(
             userName: profile.emails[0].value.split("@")[0],
             refreshToken: refreshToken,
             accessToken: accessToken,
+            hasCompletedOnboarding: false,
           });
 
           await user.save();

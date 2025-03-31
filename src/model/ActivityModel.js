@@ -16,7 +16,12 @@ const ActivitySchema = new mongoose.Schema(
       type: String,
       enum: ["comment", "task", "note", "email", "customer", "deal"],
       required: true,
-    }, // Loại hoạt động
+    },
+    workspace: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Workspace",
+      required: true,
+    },
     subject: { type: String, required: true }, // Tiêu đề
   },
   { timestamps: true }

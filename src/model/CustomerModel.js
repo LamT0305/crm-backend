@@ -25,6 +25,11 @@ const CustomerSchema = new mongoose.Schema({
     required: true,
   },
   industry: { type: String, required: true },
+  workspace: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Workspace",
+    required: true,
+  },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });

@@ -75,9 +75,18 @@ export const sendEmail = async (req, res) => {
           .json({ error: "File upload failed", details: err });
       }
 
-      const { to, subject, message } = req.body;
-      if (!to || !subject || !message) {
+      const { to, subject, message, customerId } = req.body;
+      if (!to || !subject || !message || !customerId) {
         return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const customer = await CustomerModel.findOne({
+        _id: customerId,
+        workspace: req.workspaceId,
+      });
+
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
       }
 
       const attachments = [];
@@ -119,6 +128,7 @@ export const sendEmail = async (req, res) => {
 
       const sentEmail = await EmailModel.create({
         userId: req.user.id,
+        customerId,
         to,
         subject,
         message,
@@ -128,9 +138,14 @@ export const sendEmail = async (req, res) => {
         sentAt: new Date(),
         attachments,
         isDeleted: false,
+        workspace: req.workspaceId,
       });
 
-      await sentEmail.populate("userId", "email name");
+      await sentEmail.populate([
+        { path: "userId", select: "email name" },
+        { path: "customerId", select: "firstName lastName email" },
+      ]);
+
       res.status(200).json({
         success: true,
         message: "Email sent successfully!",
@@ -145,17 +160,28 @@ export const sendEmail = async (req, res) => {
 
 export const getEmails = async (req, res) => {
   try {
-    const { recipient } = req.body;
+    const { customerId } = req.params.id;
+
+    const customer = await CustomerModel.findOne({
+      _id: customerId,
+      workspace: req.workspaceId,
+    });
+
+    if (!customer) {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+
     const emails = await EmailModel.find({
-      userId: req.user.id,
-      to: recipient,
+      workspace: req.workspaceId,
+      customerId,
       isDeleted: { $ne: true },
     })
       .populate("userId", "email name")
+      .populate("customerId", "firstName lastName email")
       .sort({ sentAt: -1 })
       .lean();
 
-    res.status(200).json({ success: true, emails });
+    successResponse(res, { emails, total: emails.length });
   } catch (error) {
     console.error("Get emails error:", error);
     errorResponse(res, "Could not retrieve emails", error);
@@ -192,7 +218,6 @@ export const fetchReplies = async () => {
                   "Unknown Sender";
                 const senderEmail = extractEmailAddress(from);
 
-                // First check if sender is a customer in the system
                 const customer = await CustomerModel.findOne({
                   email: senderEmail,
                 }).lean();
@@ -202,9 +227,9 @@ export const fetchReplies = async () => {
                   return;
                 }
 
-                // Then check if this email was already processed
                 const existingEmail = await EmailModel.findOne({
                   messageId,
+                  workspace: customer.workspace,
                 }).lean();
 
                 if (existingEmail) {
@@ -225,6 +250,7 @@ export const fetchReplies = async () => {
 
                 const newEmail = await EmailModel.create({
                   userId: user._id,
+                  customerId: customer._id,
                   to: senderEmail,
                   subject,
                   message: body,
@@ -234,13 +260,10 @@ export const fetchReplies = async () => {
                   sentAt,
                   attachments,
                   isDeleted: false,
+                  workspace: customer.workspace,
                 });
 
-                await handleNewEmail(newEmail.userId, {
-                  from,
-                  subject,
-                  threadId,
-                });
+                await handleNewEmail(newEmail);
                 console.log(`📩 Stored email from customer: ${senderEmail}`);
               } catch (error) {
                 console.error(`Error processing message ${msg.id}:`, error);
@@ -299,46 +322,29 @@ const fetchAttachments = async (emailData) => {
   return results.filter(Boolean);
 };
 
-export const handleNewEmail = async (userId, emailData) => {
+export const handleNewEmail = async (email) => {
   try {
-    // Check if email exists and is not deleted
-    const email = await EmailModel.findOne({
-      threadId: emailData.threadId,
-      isDeleted: { $ne: true },
-    }).lean();
-
-    if (!email) {
-      console.log("Email not found or deleted, skipping notification");
-      return null;
-    }
-
     const io = getIO();
-    const emailAddress = extractEmailAddress(emailData.from);
 
     const notification = await NotificationModel.create({
-      userId,
-      message: `${emailAddress} has sent an email`,
-      title: `New Email: ${emailData.subject}`,
+      userId: email.userId,
+      message: `New email received from ${email.to}`,
+      title: `New Email: ${email.subject}`,
       status: "Unread",
       type: "email",
+      workspace: email.workspace,
     });
 
     await notification.populate("userId", "email name");
 
-    const customer = await CustomerModel.findOne({
-      email: emailAddress,
-    }).lean();
+    io.to(`user_${email.userId}`).emit("newEmail", {
+      type: "email",
+      data: { notification, customerId: email.customerId },
+    });
 
-    if (customer) {
-      io.to(`user_${userId}`).emit("newEmail", {
-        type: "email",
-        data: { notification, customerId: customer._id },
-      });
-
-      io.to(`user_${userId}`).emit("updateEmails", {
-        customerId: customer._id,
-      });
-    }
+    io.to(`user_${email.userId}`).emit("updateEmails", {
+      customerId: email.customerId,
+    });
 
     return notification;
   } catch (error) {
@@ -349,8 +355,10 @@ export const handleNewEmail = async (userId, emailData) => {
 
 export const handleDeleteEmail = async (req, res) => {
   try {
-    const emailId = req.params.id;
-    const email = await EmailModel.findById(emailId).lean();
+    const email = await EmailModel.findOne({
+      _id: req.params.id,
+      workspace: req.workspaceId,
+    }).lean();
 
     if (!email) {
       return res.status(404).json({ error: "Email not found" });
@@ -362,8 +370,11 @@ export const handleDeleteEmail = async (req, res) => {
       )
     );
 
-    await EmailModel.findByIdAndUpdate(
-      emailId,
+    await EmailModel.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        workspace: req.workspaceId,
+      },
       {
         isDeleted: true,
         deletedAt: new Date(),

@@ -18,6 +18,11 @@ const EmailSchema = new mongoose.Schema({
     },
   ],
   isDeleted: { type: Boolean, default: false },
+  workspace: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Workspace",
+    required: true,
+  },
 });
 
 // ✅ Prevent duplicate emails with the same threadId and sentAt

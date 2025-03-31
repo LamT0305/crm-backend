@@ -5,11 +5,17 @@ import {
   sendEmail,
 } from "../controller/EmailController.js";
 import { verifyToken } from "../middleware/authMiddleWare.js";
+import { checkWorkspaceAccess } from "../middleware/workspaceAuth.js";
 
 const router = express.Router();
+
+// Apply middleware
 router.use(verifyToken);
-router.route("/send").post(sendEmail);
-router.route("/get-emails").post(getEmails);
-router.route("/delete-email/:id").delete(handleDeleteEmail);
+router.use(checkWorkspaceAccess);
+
+// Email routes
+router.post("/", sendEmail);
+router.get("/:id", getEmails);
+router.delete("/:id", handleDeleteEmail);
 
 export default router;

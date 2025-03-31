@@ -7,15 +7,19 @@ import {
   deleteProductService,
 } from "../controller/ProductServiceController.js";
 import { verifyToken } from "../middleware/authMiddleWare.js";
+import { checkWorkspaceAccess } from "../middleware/workspaceAuth.js";
 
 const router = express.Router();
 
+// Apply middleware
 router.use(verifyToken);
+router.use(checkWorkspaceAccess);
 
-router.route("/create-product").post(createProductService);
-router.route("/products").get(getAllProductServices);
-router.route("/get-product/:id").get(getProductServiceById);
-router.route("/update-product/:id").put(updateProductService);
-router.route("/delete-product/:id").delete(deleteProductService);
+// Product routes
+router.post("/", createProductService);
+router.get("/", getAllProductServices);
+router.get("/:id", getProductServiceById);
+router.put("/:id", updateProductService);
+router.delete("/:id", deleteProductService);
 
 export default router;

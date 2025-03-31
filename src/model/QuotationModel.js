@@ -7,9 +7,14 @@ const QuotationSchema = new mongoose.Schema({
       productId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "ProductService",
+        required: true,
       },
-      quantity: Number,
-      price: Number,
+      quantity: { type: Number, required: true },
+      price: { type: Number, required: true },
+      category: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Category",
+      },
     },
   ],
   totalPrice: Number,
@@ -27,6 +32,11 @@ const QuotationSchema = new mongoose.Schema({
   },
   finalPrice: {
     type: Number,
+  },
+  workspace: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Workspace",
+    required: true,
   },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },

@@ -1,25 +1,23 @@
 import CustomerCareModel from "../model/CustomerCareModel.js";
 import { successResponse, errorResponse } from "../utils/responseHandler.js";
 
-// Common population options
 const populateOptions = {
-  customerId: {
+  customer: {
     path: "customerId",
     select: "firstName lastName email phone gender",
   },
-  userId: { path: "userId", select: "name email" },
+  user: { path: "userId", select: "name email" },
 };
 
-// Validate interaction type
 const validateType = (type) => {
   const validTypes = [
     "Call",
     "Email",
     "Meeting",
-    "Follow-up-Sale", // Following up after a sale
-    "Follow-up-Issue", // Following up after resolving an issue
-    "Follow-up-Meeting", // Following up after a meeting
-    "Follow-up-Quote", // Following up on a quotation
+    "Follow-up-Sale",
+    "Follow-up-Issue",
+    "Follow-up-Meeting",
+    "Follow-up-Quote",
   ];
   return validTypes.includes(type);
 };
@@ -31,14 +29,12 @@ export const createCustomerCare = async (req, res) => {
     if (!customerId || !type || !notes?.trim()) {
       return res.status(400).json({
         message: "Customer ID, type, and notes are required",
-        body: req.body,
       });
     }
 
     if (!validateType(type)) {
       return res.status(400).json({
-        message:
-          "Invalid interaction type. Must be Call, Email, Meeting, or Follow-up",
+        message: "Invalid interaction type",
       });
     }
 
@@ -47,11 +43,15 @@ export const createCustomerCare = async (req, res) => {
       userId: req.user.id,
       type,
       notes: notes.trim(),
-    }).then((doc) =>
-      doc.populate([populateOptions.customerId, populateOptions.userId])
-    );
+      workspace: req.workspaceId,
+      date: new Date(),
+    });
 
-    successResponse(res, customerCare);
+    const populatedCare = await customerCare
+      .populate(populateOptions.customer)
+      .populate(populateOptions.user);
+
+    successResponse(res, populatedCare);
   } catch (error) {
     console.error("Create CustomerCare Error:", error);
     errorResponse(res, error.message);
@@ -62,16 +62,11 @@ export const getCustomerCareByCustomer = async (req, res) => {
   try {
     const interactions = await CustomerCareModel.find({
       customerId: req.params.id,
+      workspace: req.workspaceId,
     })
-      .populate([populateOptions.customerId, populateOptions.userId])
+      .populate([populateOptions.customer, populateOptions.user])
       .sort({ createdAt: -1 })
       .lean();
-
-    if (!interactions) {
-      return res.status(404).json({
-        message: "No interactions found for this customer",
-      });
-    }
 
     successResponse(res, {
       interactions,
@@ -88,18 +83,13 @@ export const getCustomerCareByCustomer = async (req, res) => {
 
 export const getCustomerCareById = async (req, res) => {
   try {
-    const interaction = await CustomerCareModel.findById(
-      req.params.id
-    ).populate([populateOptions.customerId, populateOptions.userId]);
+    const interaction = await CustomerCareModel.findOne({
+      _id: req.params.id,
+      workspace: req.workspaceId,
+    }).populate([populateOptions.customer, populateOptions.user]);
 
     if (!interaction) {
       return res.status(404).json({ message: "Interaction not found" });
-    }
-
-    if (interaction.userId._id.toString() !== req.user.id) {
-      return res.status(403).json({
-        message: "Not authorized to view this interaction",
-      });
     }
 
     successResponse(res, interaction);
@@ -118,22 +108,25 @@ export const updateCustomerCare = async (req, res) => {
 
     if (type && !validateType(type)) {
       return res.status(400).json({
-        message:
-          "Invalid interaction type. Must be Call, Email, Meeting, or Follow-up",
+        message: "Invalid interaction type",
       });
     }
 
     const interaction = await CustomerCareModel.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user.id },
+      {
+        _id: req.params.id,
+        workspace: req.workspaceId,
+        userId: req.user.id,
+      },
       {
         $set: {
           ...(type && { type }),
           ...(notes?.trim() && { notes: notes.trim() }),
-          updatedAt: Date.now(),
+          updatedAt: new Date(),
         },
       },
       { new: true }
-    ).populate([populateOptions.customerId, populateOptions.userId]);
+    ).populate([populateOptions.customer, populateOptions.user]);
 
     if (!interaction) {
       return res.status(404).json({
@@ -155,6 +148,7 @@ export const deleteCustomerCare = async (req, res) => {
   try {
     const result = await CustomerCareModel.findOneAndDelete({
       _id: req.params.id,
+      workspace: req.workspaceId,
       userId: req.user.id,
     });
 

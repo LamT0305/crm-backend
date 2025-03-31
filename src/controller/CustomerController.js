@@ -5,7 +5,7 @@ import { successResponse, errorResponse } from "../utils/responseHandler.js";
 
 const populateOptions = {
   source: { path: "sourceId", select: "name" },
-  deals: { path: "deals" },
+  deals: { path: "deals", select: "status products quotationId" },
   user: { path: "userId", select: "name email" },
 };
 
@@ -34,17 +34,28 @@ export const createCustomer = async (req, res) => {
     }
 
     const { email } = req.body;
-    const isExisted = await CustomerModel.findOne({ email }).lean();
-    if (isExisted) {
-      return res.status(400).json({ message: "Email already exists" });
+    const existingCustomer = await CustomerModel.findOne({
+      email,
+      workspace: req.workspaceId,
+    }).lean();
+
+    if (existingCustomer) {
+      return res.status(400).json({
+        message: "Email already exists in this workspace",
+      });
     }
 
     const customer = await CustomerModel.create({
       ...req.body,
       userId: req.user.id,
+      workspace: req.workspaceId,
     });
 
-    const populatedCustomer = await customer.populate(populateOptions.source);
+    const populatedCustomer = await customer.populate([
+      populateOptions.source,
+      populateOptions.user,
+    ]);
+
     successResponse(res, populatedCustomer);
   } catch (error) {
     console.error("Create Customer Error:", error);
@@ -55,10 +66,14 @@ export const createCustomer = async (req, res) => {
 export const getLeadsByUser = async (req, res) => {
   try {
     const leads = await CustomerModel.find({
-      userId: req.user.id,
+      workspace: req.workspaceId,
       status: "lead",
     })
-      .populate([populateOptions.source, populateOptions.deals])
+      .populate([
+        populateOptions.source,
+        populateOptions.deals,
+        populateOptions.user,
+      ])
       .sort({ createdAt: -1 })
       .lean();
 
@@ -75,10 +90,14 @@ export const getLeadsByUser = async (req, res) => {
 export const getCustomersByUser = async (req, res) => {
   try {
     const customers = await CustomerModel.find({
-      userId: req.user.id,
+      workspace: req.workspaceId,
       status: "customer",
     })
-      .populate([populateOptions.source, populateOptions.deals])
+      .populate([
+        populateOptions.source,
+        populateOptions.deals,
+        populateOptions.user,
+      ])
       .sort({ createdAt: -1 })
       .lean();
 
@@ -100,8 +119,12 @@ export const getCustomerById = async (req, res) => {
 
     const customer = await CustomerModel.findOne({
       _id: req.params.id,
-      userId: req.user.id,
-    }).populate([populateOptions.source, populateOptions.user]);
+      workspace: req.workspaceId,
+    }).populate([
+      populateOptions.source,
+      populateOptions.deals,
+      populateOptions.user,
+    ]);
 
     if (!customer) {
       return res.status(404).json({ message: "Customer not found" });
@@ -126,15 +149,25 @@ export const updateCustomer = async (req, res) => {
     }
 
     const customer = await CustomerModel.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user.id },
-      { ...req.body, updatedAt: Date.now() },
+      {
+        _id: req.params.id,
+        workspace: req.workspaceId,
+      },
+      {
+        ...req.body,
+        updatedAt: new Date(),
+      },
       { new: true }
-    ).populate(populateOptions.source);
+    ).populate([
+      populateOptions.source,
+      populateOptions.deals,
+      populateOptions.user,
+    ]);
 
     if (!customer) {
-      return res
-        .status(404)
-        .json({ message: "Customer not found or not authorized to update" });
+      return res.status(404).json({
+        message: "Customer not found or not authorized to update",
+      });
     }
 
     successResponse(res, customer);
@@ -152,18 +185,18 @@ export const deleteCustomer = async (req, res) => {
 
     const customer = await CustomerModel.findOneAndDelete({
       _id: req.params.id,
-      userId: req.user.id,
+      workspace: req.workspaceId,
     });
 
     if (!customer) {
-      return res
-        .status(404)
-        .json({ message: "Customer not found or not authorized to delete" });
+      return res.status(404).json({
+        message: "Customer not found or not authorized to delete",
+      });
     }
 
     successResponse(res, { message: "Customer deleted successfully" });
   } catch (error) {
     console.error("Delete Customer Error:", error);
-    errorResponse(res, "Could not delete customer");
+    errorResponse(res, error.message);
   }
 };

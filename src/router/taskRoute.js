@@ -8,14 +8,20 @@ import {
   updateTask,
 } from "../controller/TaskController.js";
 import { verifyToken } from "../middleware/authMiddleWare.js";
+import { checkWorkspaceAccess } from "../middleware/workspaceAuth.js";
+
 const router = express.Router();
 
+// Apply middleware
 router.use(verifyToken);
-router.route("/create-task").post(createTask);
-router.route("/update-task/:id").put(updateTask);
-router.route("/delete-task/:id").delete(deleteTask);
-router.route("/get-tasks").get(getAllTasksByUser);
-router.route("/get-tasks-of-customer/:id").get(getTasksBetweenUserAndCustomer);
-router.route("/get-task/:id").get(getTaskById);
+router.use(checkWorkspaceAccess);
+
+// Task routes
+router.get("/", getAllTasksByUser);
+router.post("/", createTask);
+router.get("/customer/:id", getTasksBetweenUserAndCustomer);
+router.get("/:id", getTaskById);
+router.put("/:id", updateTask);
+router.delete("/:id", deleteTask);
 
 export default router;

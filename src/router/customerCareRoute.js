@@ -7,15 +7,19 @@ import {
   deleteCustomerCare,
 } from "../controller/CustomerCareController.js";
 import { verifyToken } from "../middleware/authMiddleWare.js";
+import { checkWorkspaceAccess } from "../middleware/workspaceAuth.js";
 
 const router = express.Router();
 
+// Apply middleware
 router.use(verifyToken);
+router.use(checkWorkspaceAccess);
 
-router.route("/create-customer-care").post(createCustomerCare);
-router.route("/customer-care/:id").get(getCustomerCareByCustomer);
-router.route("/get-customer-care/:id").get(getCustomerCareById);
-router.route("/update-customer-care/:id").put(updateCustomerCare);
-router.route("/delete-customer-care/:id").delete(deleteCustomerCare);
+// Customer Care routes
+router.post("/", createCustomerCare);
+router.get("/customer/:id", getCustomerCareByCustomer);
+router.get("/:id", getCustomerCareById);
+router.put("/:id", updateCustomerCare);
+router.delete("/:id", deleteCustomerCare);
 
 export default router;

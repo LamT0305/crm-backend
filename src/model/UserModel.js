@@ -12,9 +12,10 @@ const UserSchema = new mongoose.Schema(
     birthday: { type: Date },
     bio: { type: String },
     avatar: { type: String },
-    role: { type: String, enum: ["Admin", "User"], default: "User" },
     refreshToken: { type: String },
     accessToken: { type: String },
+    workspace: { type: mongoose.Schema.Types.ObjectId, ref: "Workspace" },
+    hasCompletedOnboarding: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

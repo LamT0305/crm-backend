@@ -8,14 +8,20 @@ import {
   updateNote,
 } from "../controller/NoteController.js";
 import { verifyToken } from "../middleware/authMiddleWare.js";
+import { checkWorkspaceAccess } from "../middleware/workspaceAuth.js";
 
 const router = express.Router();
+
+// Apply middleware
 router.use(verifyToken);
-router.route("/get-notes").get(getAllNotesByUser);
-router.route("/get-customer-notes/:id").get(getCustomerNotes);
-router.route("/create-note").post(createNote);
-router.route("/delete-note/:id").delete(deleteNote);
-router.route("/update-note/:id").put(updateNote);
-router.route("/get-note/:id").get(getNoteById);
+router.use(checkWorkspaceAccess);
+
+// Note routes
+router.get("/", getAllNotesByUser);
+router.get("/customer/:id", getCustomerNotes);
+router.post("/", createNote);
+router.delete("/:id", deleteNote);
+router.put("/:id", updateNote);
+router.get("/:id", getNoteById);
 
 export default router;

@@ -16,6 +16,11 @@ const CommentSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    workspace: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Workspace",
+      required: true,
+    },
   },
   {
     timestamps: true,

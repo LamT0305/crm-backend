@@ -2,85 +2,60 @@ import UserModel from "../model/UserModel.js";
 import { successResponse, errorResponse } from "../utils/responseHandler.js";
 import fs from "fs";
 
-// Read + update user profile
-
 export const getProfile = async (req, res) => {
   try {
-    const user = await UserModel.findById(req.user.id);
-    if (user) {
-      return res.status(404).json({ message: "User not found" });
+    const user = await UserModel.findById(req.user.id)
+      .select("-password -refreshToken -accessToken")
+      .populate("workspace", "name");
+
+    if (!user) {
+      return errorResponse(res, "User not found", 404);
     }
 
-    successResponse(req, user);
+    successResponse(res, user);
   } catch (error) {
-    errorResponse(req, error.message);
+    errorResponse(res, error.message);
   }
 };
 
 export const updateUserProfile = async (req, res) => {
   try {
-    const userId = req.user.id;
-    let updates = req.body;
+    const { name, phone, gender, birthday, bio, userName } = req.body;
+    const updates = {
+      ...(name && { name }),
+      ...(phone && { phone }),
+      ...(gender && { gender }),
+      ...(birthday && { birthday: new Date(birthday) }),
+      ...(bio && { bio }),
+      ...(userName && { userName }),
+    };
 
-    const user = await UserModel.findById(userId);
-    if (!user) {
-      return res.status(404).send("User not found");
+    if (Object.keys(updates).length === 0) {
+      return errorResponse(res, "No valid fields to update", 400);
     }
 
-    if (req.user.id !== user._id) {
-      return res
-        .status(403)
-        .send("You don't have permission to update this user");
-    }
-
-    // Handle avatar upload
     if (req.file) {
-      // Delete old avatar if exists
-      if (user.avatar) {
+      const user = await UserModel.findById(req.user.id);
+      if (user?.avatar) {
         const oldAvatarPath = `uploads/${user.avatar.split("/").pop()}`;
         if (fs.existsSync(oldAvatarPath)) {
           fs.unlinkSync(oldAvatarPath);
         }
       }
-      // Save new avatar URL
       updates.avatar = `/uploads/${req.file.filename}`;
     }
 
-    // Update user info
-    const updatedUser = await UserModel.findByIdAndUpdate(userId, updates, {
-      new: true,
-    });
+    const updatedUser = await UserModel.findByIdAndUpdate(
+      req.user.id,
+      { ...updates, updatedAt: new Date() },
+      { new: true }
+    ).select("-password -refreshToken -accessToken");
 
-    return successResponse(res, updatedUser);
-  } catch (error) {
-    return errorResponse(res, error.message);
-  }
-};
-
-export const setUserRole = async (req, res) => {
-  try {
-    if (req.user.role !== "Admin") {
-      return res
-        .status(403)
-        .send("You don't have permission to access this page");
+    if (!updatedUser) {
+      return errorResponse(res, "User not found", 404);
     }
 
-    const { role } = req.body;
-    const user = await UserModel.findByIdAndUpdate(
-      req.params.id,
-      {
-        role: role,
-      },
-      {
-        new: true,
-      }
-    );
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found!" });
-    }
-
-    successResponse(req, user);
+    successResponse(res, updatedUser);
   } catch (error) {
     errorResponse(res, error.message);
   }
@@ -88,41 +63,29 @@ export const setUserRole = async (req, res) => {
 
 export const viewListUsers = async (req, res) => {
   try {
-    if (req.user.role !== "Admin") {
-      return res
-        .status(403)
-        .send("You don't have permission to access this page");
-    }
+    const users = await UserModel.find({ workspace: req.workspaceId })
+      .select("-password -refreshToken -accessToken")
+      .sort({ createdAt: -1 });
 
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
-
-    const users = await UserModel.find().skip(skip).limit(limit);
-
-    // Get total count of users
-    const totalUsers = await UserModel.countDocuments();
-
-    // Return paginated response
-    const result = {
-      users,
-      currentPage: page,
-      totalPages: Math.ceil(totalUsers / limit),
-      totalUsers,
-    };
-    return successResponse(res, result);
+    successResponse(res, { users });
   } catch (error) {
-    return errorResponse(res, error.message);
+    errorResponse(res, error.message);
   }
 };
 
 export const getUserById = async (req, res) => {
   try {
-    const user = await UserModel.findById(req.params.id);
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const user = await UserModel.findOne({
+      _id: req.params.id,
+      workspace: req.workspaceId,
+    }).select("-password -refreshToken -accessToken");
 
-    successResponse(req, user);
+    if (!user) {
+      return errorResponse(res, "User not found", 404);
+    }
+
+    successResponse(res, user);
   } catch (error) {
-    errorResponse(req, error.message);
+    errorResponse(res, error.message);
   }
 };

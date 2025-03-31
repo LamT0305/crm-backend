@@ -1,5 +1,6 @@
 import express from "express";
 import { verifyToken } from "../middleware/authMiddleWare.js";
+import { checkWorkspaceAccess } from "../middleware/workspaceAuth.js";
 import {
   createComment,
   deleteComment,
@@ -8,9 +9,13 @@ import {
 
 const router = express.Router();
 
+// Apply middleware
 router.use(verifyToken);
-router.route("/get-comments/:id").get(getCommentsByCustomer);
-router.route("/create-comment").post(createComment);
-router.route("/delete-comment/:id").delete(deleteComment);
-export default router;
+router.use(checkWorkspaceAccess);
 
+// Comment routes
+router.get("/:customerId", getCommentsByCustomer);
+router.post("/", createComment);
+router.delete("/:id", deleteComment);
+
+export default router;

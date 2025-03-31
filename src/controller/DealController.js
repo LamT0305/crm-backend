@@ -13,6 +13,10 @@ const populateOptions = {
   products: {
     path: "products.productId",
     select: "name price description category unit",
+    populate: {
+      path: "category",
+      select: "name description",
+    },
   },
   quotation: {
     path: "quotationId",
@@ -49,7 +53,6 @@ export const createDeal = async (req, res) => {
     if (!customerId || !status || !products?.length) {
       return res.status(400).json({
         message: "Customer ID, status, and at least one product are required",
-        body: req.body,
       });
     }
 
@@ -67,6 +70,7 @@ export const createDeal = async (req, res) => {
       customerId,
       products,
       status,
+      workspace: req.workspaceId,
     });
 
     const quotation = await QuotationModel.create({
@@ -75,21 +79,21 @@ export const createDeal = async (req, res) => {
       totalPrice,
       finalPrice,
       discount: discount || { type: "fixed", value: 0 },
+      workspace: req.workspaceId,
     });
 
-    await DealModel.findByIdAndUpdate(
+    const updatedDeal = await DealModel.findByIdAndUpdate(
       deal._id,
       { quotationId: quotation._id },
       { new: true }
-    );
-
-    const populatedDeal = await DealModel.findById(deal._id).populate([
+    ).populate([
       populateOptions.customer,
       populateOptions.products,
       populateOptions.quotation,
+      populateOptions.user,
     ]);
 
-    successResponse(res, populatedDeal);
+    successResponse(res, updatedDeal);
   } catch (error) {
     console.error("Create Deal Error:", error);
     errorResponse(res, error.message);
@@ -98,14 +102,17 @@ export const createDeal = async (req, res) => {
 
 export const getDealsByUser = async (req, res) => {
   try {
-    const deals = await DealModel.find({ userId: req.user.id })
+    const deals = await DealModel.find({
+      workspace: req.workspaceId,
+    })
       .populate([
         populateOptions.customer,
         populateOptions.products,
         populateOptions.quotation,
+        populateOptions.user,
       ])
       .sort({ createdAt: -1 })
-      .lean(); // Using lean() for better performance with large datasets
+      .lean();
 
     successResponse(res, {
       deals,
@@ -127,7 +134,7 @@ export const updateDeal = async (req, res) => {
 
     const deal = await DealModel.findOne({
       _id: req.params.id,
-      userId: req.user.id,
+      workspace: req.workspaceId,
     }).populate("products.productId");
 
     if (!deal) {
@@ -148,58 +155,73 @@ export const updateDeal = async (req, res) => {
         discount || deal.quotationId.discount
       );
 
-      await QuotationModel.findByIdAndUpdate(
-        deal.quotationId,
+      await QuotationModel.findOneAndUpdate(
+        {
+          _id: deal.quotationId,
+          workspace: req.workspaceId,
+        },
         {
           products: products || deal.products,
           totalPrice,
           finalPrice,
           discount: discount || deal.quotationId.discount,
-          updatedAt: Date.now(),
+          updatedAt: new Date(),
         },
         { new: true }
       );
     }
 
-    // Check if status is changing to "Won" -> update product quantities
+    // Handle stock updates for Won deals
     if (status === "Won" && deal.status !== "Won") {
-      for (const product of products) {
-        const pd = await ProductServiceModel.findById(product.productId);
-        if (pd.category === "supplement") {
-          if (!pd) {
-            return res.status(404).json({
-              message: `Product with ID ${product.productId} not found`,
-            });
-          }
-          if (pd.quantity < product.quantity) {
-            return res.status(400).json({
-              message: `Not enough quantity for product with ID ${product.productId}`,
-            });
-          }
-          pd.stock -= product.quantity;
-          await pd.save();
+      for (const product of products || deal.products) {
+        const productDoc = await ProductServiceModel.findOne({
+          _id: product.productId,
+          workspace: req.workspaceId,
+        });
+
+        if (!productDoc) {
+          return res.status(404).json({
+            message: `Product not found: ${product.productId}`,
+          });
         }
+
+        if (productDoc.stock < product.quantity) {
+          return res.status(400).json({
+            message: `Insufficient stock for product: ${productDoc.name}`,
+          });
+        }
+
+        productDoc.stock -= product.quantity;
+        await productDoc.save();
       }
     }
 
-    const updatedDeal = await DealModel.findByIdAndUpdate(
-      req.params.id,
+    const updatedDeal = await DealModel.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        workspace: req.workspaceId,
+      },
       {
         customerId: customerId || deal.customerId,
         products: products || deal.products,
         status: status || deal.status,
-        updatedAt: Date.now(),
+        updatedAt: new Date(),
       },
       { new: true }
     ).populate([
       populateOptions.customer,
       populateOptions.products,
       populateOptions.quotation,
+      populateOptions.user,
     ]);
 
-    if (status === "Won" && customerId) {
+    if (status === "Won") {
       await CustomerModel.findOneAndUpdate(
-        { _id: customerId, status: "lead" },
+        {
+          _id: customerId || deal.customerId,
+          workspace: req.workspaceId,
+          status: "lead",
+        },
         { status: "customer" },
         { new: true }
       );
@@ -220,7 +242,7 @@ export const deleteDeal = async (req, res) => {
 
     const deal = await DealModel.findOne({
       _id: req.params.id,
-      userId: req.user.id,
+      workspace: req.workspaceId,
     });
 
     if (!deal) {
@@ -230,8 +252,15 @@ export const deleteDeal = async (req, res) => {
     }
 
     await Promise.all([
-      deal.quotationId && QuotationModel.findByIdAndDelete(deal.quotationId),
-      DealModel.findByIdAndDelete(req.params.id),
+      deal.quotationId &&
+        QuotationModel.findOneAndDelete({
+          _id: deal.quotationId,
+          workspace: req.workspaceId,
+        }),
+      DealModel.findOneAndDelete({
+        _id: req.params.id,
+        workspace: req.workspaceId,
+      }),
     ]);
 
     successResponse(res, {
@@ -251,7 +280,7 @@ export const getDealById = async (req, res) => {
 
     const deal = await DealModel.findOne({
       _id: req.params.id,
-      userId: req.user.id,
+      workspace: req.workspaceId,
     }).populate([
       populateOptions.customer,
       populateOptions.products,
@@ -278,7 +307,10 @@ export const getAllDealsByCustomerId = async (req, res) => {
       return res.status(400).json({ message: "Invalid customer ID format" });
     }
 
-    const deals = await DealModel.find({ customerId: req.params.id })
+    const deals = await DealModel.find({
+      customerId: req.params.id,
+      workspace: req.workspaceId,
+    })
       .populate([
         populateOptions.customer,
         populateOptions.products,

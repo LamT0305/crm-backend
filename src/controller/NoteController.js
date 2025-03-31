@@ -5,17 +5,26 @@ export const createNote = async (req, res) => {
   try {
     const { customerId, title, content } = req.body;
 
-    if (!customerId || !title || !content)
+    if (!customerId || !title || !content) {
       return res.status(400).json({ message: "All fields are required" });
+    }
 
     const note = await NoteModel.create({
       userId: req.user.id,
-      customerId: customerId,
-      title: title,
-      content: content,
+      customerId,
+      title,
+      content,
+      workspace: req.workspaceId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
-    successResponse(res, note);
+    const populatedNote = await note.populate([
+      { path: "customerId", select: "firstName lastName email" },
+      { path: "userId", select: "name email" },
+    ]);
+
+    successResponse(res, populatedNote);
   } catch (error) {
     errorResponse(res, error.message);
   }
@@ -23,11 +32,13 @@ export const createNote = async (req, res) => {
 
 export const getAllNotesByUser = async (req, res) => {
   try {
-    const notes = await NoteModel.find({ userId: req.user.id })
-      .populate("customerId", "name email")
+    const notes = await NoteModel.find({
+      workspace: req.workspaceId,
+    })
+      .populate("customerId", "firstName lastName email")
       .populate("userId", "name email")
       .sort({ createdAt: -1 });
-    if (!notes) return res.status(404).json({ message: "Note not found" });
+
     successResponse(res, notes);
   } catch (error) {
     errorResponse(res, error.message);
@@ -37,24 +48,31 @@ export const getAllNotesByUser = async (req, res) => {
 export const getCustomerNotes = async (req, res) => {
   try {
     const notes = await NoteModel.find({
-      userId: req.user.id,
+      workspace: req.workspaceId,
       customerId: req.params.id,
     })
-      .populate("customerId", "firstName email")
+      .populate("customerId", "firstName lastName email")
       .populate("userId", "name email")
       .sort({ createdAt: -1 });
-    if (!notes) return res.status(404).send("Notes not found");
+
     successResponse(res, notes);
   } catch (error) {
-    return errorResponse(res, error);
+    errorResponse(res, error.message);
   }
 };
 
-export const deleteNote = async (req, res, next) => {
+export const deleteNote = async (req, res) => {
   try {
-    const note = await NoteModel.findByIdAndDelete(req.params.id);
-    if (!note) return res.status(404).json({ message: "Note not found" });
-    successResponse(res, note);
+    const note = await NoteModel.findOneAndDelete({
+      _id: req.params.id,
+      workspace: req.workspaceId,
+    });
+
+    if (!note) {
+      return res.status(404).json({ message: "Note not found" });
+    }
+
+    successResponse(res, { message: "Note deleted successfully" });
   } catch (error) {
     errorResponse(res, error.message);
   }
@@ -64,27 +82,47 @@ export const updateNote = async (req, res) => {
   try {
     const { title, content } = req.body;
 
-    const note = await NoteModel.findById(req.params.id);
-    if (!note) return res.status(404).send("Note not found");
+    const note = await NoteModel.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        workspace: req.workspaceId,
+      },
+      {
+        title,
+        content,
+        updatedAt: new Date(),
+      },
+      { new: true }
+    ).populate([
+      { path: "customerId", select: "firstName lastName email" },
+      { path: "userId", select: "name email" },
+    ]);
 
-    note.content = content;
-    note.title = title;
-    await note.save();
+    if (!note) {
+      return res.status(404).json({ message: "Note not found" });
+    }
 
     successResponse(res, note);
   } catch (error) {
-    return errorResponse(res, error);
+    errorResponse(res, error.message);
   }
 };
 
 export const getNoteById = async (req, res) => {
   try {
-    const note = await NoteModel.findById(req.params.id)
-      .populate("customerId", "name ")
-      .populate("userId", "name ");
-    if (!note) return res.status(404).send("Note not found");
+    const note = await NoteModel.findOne({
+      _id: req.params.id,
+      workspace: req.workspaceId,
+    })
+      .populate("customerId", "firstName lastName email")
+      .populate("userId", "name email");
+
+    if (!note) {
+      return res.status(404).json({ message: "Note not found" });
+    }
+
     successResponse(res, note);
   } catch (error) {
-    return errorResponse(res, error);
+    errorResponse(res, error.message);
   }
 };

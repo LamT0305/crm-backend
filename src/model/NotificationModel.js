@@ -9,6 +9,11 @@ const NotificationSchema = new mongoose.Schema({
   title: String,
   message: String,
   status: { type: String, enum: ["Unread", "Read"] },
+  workspace: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Workspace",
+    required: true,
+  },
   createdAt: { type: Date, default: Date.now },
 });
 const NotificationModel = mongoose.model("Notification", NotificationSchema);

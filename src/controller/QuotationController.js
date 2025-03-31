@@ -1,14 +1,44 @@
 import QuotationModel from "../model/QuotationModel.js";
 import { successResponse, errorResponse } from "../utils/responseHandler.js";
+import mongoose from "mongoose";
 
-// Get all quotations
+const calculatePrices = (products, discount) => {
+  const totalPrice = products.reduce(
+    (sum, item) => sum + item.quantity * item.price,
+    0
+  );
+
+  let finalPrice = totalPrice;
+  if (discount) {
+    if (discount.type === "percentage") {
+      finalPrice = totalPrice * (1 - discount.value / 100);
+    } else {
+      finalPrice = totalPrice - discount.value;
+    }
+  }
+  return { totalPrice, finalPrice };
+};
+
 export const getAllQuotations = async (req, res) => {
   try {
-    const quotations = await QuotationModel.find()
-      .populate("dealId")
+    const quotations = await QuotationModel.find({
+      workspace: req.workspaceId,
+    })
+      .populate({
+        path: "dealId",
+        select: "status customerId",
+        populate: {
+          path: "customerId",
+          select: "firstName lastName email",
+        },
+      })
       .populate({
         path: "products.productId",
         select: "name price description category unit",
+        populate: {
+          path: "category",
+          select: "name",
+        },
       })
       .sort({ createdAt: -1 });
 
@@ -18,14 +48,27 @@ export const getAllQuotations = async (req, res) => {
   }
 };
 
-// Get a single quotation by ID
 export const getQuotationById = async (req, res) => {
   try {
-    const quotation = await QuotationModel.findById(req.params.id)
-      .populate("dealId")
+    const quotation = await QuotationModel.findOne({
+      _id: req.params.id,
+      workspace: req.workspaceId,
+    })
+      .populate({
+        path: "dealId",
+        select: "status customerId",
+        populate: {
+          path: "customerId",
+          select: "firstName lastName email",
+        },
+      })
       .populate({
         path: "products.productId",
         select: "name price description category unit",
+        populate: {
+          path: "category",
+          select: "name",
+        },
       });
 
     if (!quotation) {
@@ -38,22 +81,31 @@ export const getQuotationById = async (req, res) => {
   }
 };
 
-// Update a quotation
 export const updateQuotation = async (req, res) => {
   try {
-    const { products, discount } = req.body;
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: "Invalid quotation ID format" });
+    }
+
+    const { products, discount, status } = req.body;
     let updatedData = {};
 
     if (products && Array.isArray(products)) {
-      let totalPrice = 0;
-      products.forEach((item) => {
+      for (const item of products) {
         if (!item.productId || !item.quantity || !item.price) {
           return res.status(400).json({ message: "Invalid product details" });
         }
-        totalPrice += item.quantity * item.price;
-      });
-      updatedData.products = products;
-      updatedData.totalPrice = totalPrice;
+      }
+      const { totalPrice, finalPrice } = calculatePrices(
+        products,
+        discount || undefined
+      );
+      updatedData = {
+        ...updatedData,
+        products,
+        totalPrice,
+        finalPrice,
+      };
     }
 
     if (discount) {
@@ -67,17 +119,46 @@ export const updateQuotation = async (req, res) => {
         });
       }
       updatedData.discount = discount;
+      if (!products) {
+        const { totalPrice, finalPrice } = calculatePrices(
+          updatedData.products,
+          discount
+        );
+        updatedData.totalPrice = totalPrice;
+        updatedData.finalPrice = finalPrice;
+      }
     }
 
-    const updatedQuotation = await QuotationModel.findByIdAndUpdate(
-      req.params.id,
-      { ...updatedData, updatedAt: Date.now() },
+    if (status) {
+      updatedData.status = status;
+    }
+
+    const updatedQuotation = await QuotationModel.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        workspace: req.workspaceId,
+      },
+      {
+        ...updatedData,
+        updatedAt: new Date(),
+      },
       { new: true }
     )
-      .populate("dealId")
+      .populate({
+        path: "dealId",
+        select: "status customerId",
+        populate: {
+          path: "customerId",
+          select: "firstName lastName email",
+        },
+      })
       .populate({
         path: "products.productId",
         select: "name price description category unit",
+        populate: {
+          path: "category",
+          select: "name",
+        },
       });
 
     if (!updatedQuotation) {
@@ -90,12 +171,16 @@ export const updateQuotation = async (req, res) => {
   }
 };
 
-// Delete a quotation
 export const deleteQuotation = async (req, res) => {
   try {
-    const deletedQuotation = await QuotationModel.findByIdAndDelete(
-      req.params.id
-    );
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: "Invalid quotation ID format" });
+    }
+
+    const deletedQuotation = await QuotationModel.findOneAndDelete({
+      _id: req.params.id,
+      workspace: req.workspaceId,
+    });
 
     if (!deletedQuotation) {
       return res.status(404).json({ message: "Quotation not found" });

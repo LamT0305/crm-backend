@@ -13,6 +13,11 @@ const NoteSchema = new mongoose.Schema({
   },
   title: String,
   content: String,
+  workspace: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Workspace",
+    required: true,
+  },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });

@@ -13,63 +13,103 @@ export const createTask = async (req, res) => {
       !dueDate ||
       !priority ||
       !status
-    )
-      return res.status(400).json({ message: "All fields are required" });
+    ) {
+      return errorResponse(res, "All fields are required", 400);
+    }
+
+    if (!["Low", "Medium", "High"].includes(priority)) {
+      return errorResponse(res, "Invalid priority level", 400);
+    }
+
+    if (
+      !["Backlog", "Todo", "InProgress", "Completed", "Canceled"].includes(
+        status
+      )
+    ) {
+      return errorResponse(res, "Invalid status", 400);
+    }
 
     const task = await TaskModel.create({
       userId: req.user.id,
-      customerId: customerId,
-      title: title,
-      description: description,
-      dueDate: dueDate,
-      priority: priority,
-      status: status,
+      customerId,
+      title,
+      description,
+      dueDate: new Date(dueDate),
+      priority,
+      status,
+      workspace: req.workspaceId,
+      createdAt: new Date(),
     });
 
-    successResponse(res, task);
+    const populatedTask = await task.populate([
+      { path: "userId", select: "name email" },
+      { path: "customerId", select: "firstName lastName email" },
+    ]);
+
+    successResponse(res, populatedTask);
   } catch (error) {
     errorResponse(res, error.message);
   }
 };
 
-export const updateTask = async (req, res, next) => {
+export const updateTask = async (req, res) => {
   try {
-    const { customerId, title, description, dueDate, priority, status } =
-      req.body;
+    const { title, description, dueDate, priority, status } = req.body;
+
+    if (!title || !description || !dueDate || !priority || !status) {
+      return errorResponse(res, "All fields are required", 400);
+    }
+
+    if (!["Low", "Medium", "High"].includes(priority)) {
+      return errorResponse(res, "Invalid priority level", 400);
+    }
 
     if (
-      !customerId ||
-      !title ||
-      !description ||
-      !dueDate ||
-      !priority ||
-      !status
-    )
-      return res.status(400).json({ message: "All fields are required" });
+      !["Backlog", "Todo", "InProgress", "Completed", "Canceled"].includes(
+        status
+      )
+    ) {
+      return errorResponse(res, "Invalid status", 400);
+    }
 
-    const task = await TaskModel.findById(req.params.id);
+    const task = await TaskModel.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        workspace: req.workspaceId,
+      },
+      {
+        title,
+        description,
+        dueDate: new Date(dueDate),
+        priority,
+        status,
+        createdAt: new Date(),
+      },
+      { new: true }
+    ).populate([
+      { path: "userId", select: "name email" },
+      { path: "customerId", select: "firstName lastName email" },
+    ]);
 
-    if (!task) return res.status(404).json({ message: "Task not found" });
+    if (!task) {
+      return errorResponse(res, "Task not found", 404);
+    }
 
-    task.title = title;
-    task.description = description;
-    task.dueDate = dueDate;
-    task.priority = priority;
-    task.status = status;
-
-    await task.save();
     successResponse(res, task);
   } catch (error) {
     errorResponse(res, error.message);
   }
 };
 
-export const getAllTasksByUser = async (req, res, next) => {
+export const getAllTasksByUser = async (req, res) => {
   try {
-    const tasks = await TaskModel.find({ userId: req.user.id })
-      .populate("userId", "name")
-      .populate("customerId");
-    if (!tasks) return res.status(400).json({ message: "Task not found" });
+    const tasks = await TaskModel.find({
+      userId: req.user.id,
+      workspace: req.workspaceId,
+    })
+      .populate("userId", "name email")
+      .populate("customerId", "firstName lastName email")
+      .sort({ createdAt: -1 });
 
     successResponse(res, tasks);
   } catch (error) {
@@ -82,36 +122,50 @@ export const getTasksBetweenUserAndCustomer = async (req, res) => {
     const tasks = await TaskModel.find({
       userId: req.user.id,
       customerId: req.params.id,
+      workspace: req.workspaceId,
     })
-      .populate("userId", "name")
-      .populate("customerId")
+      .populate("userId", "name email")
+      .populate("customerId", "firstName lastName email")
       .sort({ createdAt: -1 });
 
     successResponse(res, tasks);
   } catch (error) {
-    errorResponse(res, error);
+    errorResponse(res, error.message);
   }
 };
 
 export const deleteTask = async (req, res) => {
   try {
-    const task = await TaskModel.findByIdAndDelete(req.params.id);
+    const task = await TaskModel.findOneAndDelete({
+      _id: req.params.id,
+      workspace: req.workspaceId,
+    });
+
     if (!task) {
-      return res.status(404).json({ message: "Task not found" });
+      return errorResponse(res, "Task not found", 404);
     }
 
-    successResponse(res, task);
+    successResponse(res, { message: "Task deleted successfully" });
   } catch (error) {
-    errorResponse(res, error);
+    errorResponse(res, error.message);
   }
 };
 
 export const getTaskById = async (req, res) => {
   try {
-    const task = await TaskModel.findById(req.params.id);
-    if (!task) return res.status(404).json({ message: "Taks not found!" });
+    const task = await TaskModel.findOne({
+      _id: req.params.id,
+      workspace: req.workspaceId,
+    })
+      .populate("userId", "name email")
+      .populate("customerId", "firstName lastName email");
+
+    if (!task) {
+      return errorResponse(res, "Task not found", 404);
+    }
+
     successResponse(res, task);
   } catch (error) {
-    return errorResponse(res, error);
+    errorResponse(res, error.message);
   }
 };

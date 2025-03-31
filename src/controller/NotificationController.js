@@ -1,159 +1,114 @@
 import NotificationModel from "../model/NotificationModel.js";
+import { successResponse, errorResponse } from "../utils/responseHandler.js";
 
-// Create a new notification
 export const createNotification = async (req, res) => {
   try {
     const { title, message } = req.body;
     if (!message) {
-      return res.status(400).json({
-        status: "error",
-        message: "Message is required",
-      });
+      return errorResponse(res, "Message is required", 400);
     }
+
     const notification = await NotificationModel.create({
       userId: req.user.id,
       title: title || "Notification",
-      message: message,
+      message,
       status: "Unread",
+      workspace: req.workspaceId,
+      createdAt: new Date(),
     });
-    res.status(200).json({
-      status: "success",
-      data: notification,
-    });
+
+    await notification.populate("userId", "name email");
+    successResponse(res, notification);
   } catch (error) {
-    res.status(400).json({
-      status: "error",
-      message: error.message,
-    });
+    errorResponse(res, error.message);
   }
 };
 
-// Get all notifications for a user
 export const getNotifications = async (req, res) => {
   try {
-    const notifications = await NotificationModel.find({ userId: req.user.id })
+    const notifications = await NotificationModel.find({
+      userId: req.user.id,
+      workspace: req.workspaceId,
+    })
       .sort({ createdAt: -1 })
       .populate("userId", "name email");
 
-    res.status(200).json({
-      status: "success",
-      data: notifications,
-    });
+    successResponse(res, notifications);
   } catch (error) {
-    res.status(400).json({
-      status: "error",
-      message: error.message,
-    });
+    errorResponse(res, error.message);
   }
 };
 
-
-// Delete notification
 export const deleteNotification = async (req, res) => {
   try {
-    const notificationId = req.params.id;
-    const userId = req.user.id;
-    const notification = await NotificationModel.findById(notificationId);
+    const notification = await NotificationModel.findOneAndDelete({
+      _id: req.params.id,
+      userId: req.user.id,
+      workspace: req.workspaceId,
+    });
+
     if (!notification) {
-      return res.status(404).json({
-        status: "error",
-        message: "Notification not found",
-      });
+      return errorResponse(res, "Notification not found", 404);
     }
-    if (notification.userId.toString() !== userId) {
-      return res.status(403).json({
-        status: "error",
-        message: "You are not authorized to delete this notification",
-      });
-    }
-    await notification.deleteOne();
-    res.status(200).json({
-      status: "success",
-      message: "Notification deleted successfully",
-    });
+
+    successResponse(res, { message: "Notification deleted successfully" });
   } catch (error) {
-    res.status(400).json({
-      status: "error",
-      message: error.message,
-    });
+    errorResponse(res, error.message);
   }
 };
 
-// Mark notification as read
 export const markNotificationAsRead = async (req, res) => {
   try {
-    const notificationId = req.params.id;
-    const userId = req.user.id;
-
-    const notification = await NotificationModel.findById(notificationId);
+    const notification = await NotificationModel.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        userId: req.user.id,
+        workspace: req.workspaceId,
+      },
+      { status: "Read" },
+      { new: true }
+    ).populate("userId", "name email");
 
     if (!notification) {
-      return res.status(404).json({
-        status: "error",
-        message: "Notification not found",
-      });
+      return errorResponse(res, "Notification not found", 404);
     }
 
-    if (notification.userId.toString() !== userId) {
-      return res.status(403).json({
-        status: "error",
-        message: "You are not authorized to update this notification",
-      });
-    }
-
-    notification.status = "Read";
-    await notification.save();
-
-    res.status(200).json({
-      status: "success",
-      data: notification,
-    });
+    successResponse(res, notification);
   } catch (error) {
-    res.status(400).json({
-      status: "error",
-      message: error.message,
-    });
+    errorResponse(res, error.message);
   }
 };
 
-// Get unread notifications count
 export const getUnreadNotificationsCount = async (req, res) => {
   try {
     const count = await NotificationModel.countDocuments({
       userId: req.user.id,
+      workspace: req.workspaceId,
       status: "Unread",
     });
 
-    res.status(200).json({
-      status: "success",
-      data: { count },
-    });
+    successResponse(res, { count });
   } catch (error) {
-    res.status(400).json({
-      status: "error",
-      message: error.message,
-    });
+    errorResponse(res, error.message);
   }
 };
 
-// Mark all notifications as read
 export const markAllNotificationsAsRead = async (req, res) => {
   try {
-    const userId = req.user.id;
-
-    await NotificationModel.updateMany(
-      { userId: userId, status: "Unread" },
+    const result = await NotificationModel.updateMany(
+      {
+        userId: req.user.id,
+        workspace: req.workspaceId,
+        status: "Unread",
+      },
       { status: "Read" }
     );
 
-    res.status(200).json({
-      status: "success",
+    successResponse(res, {
       message: "All notifications marked as read",
+      updated: result.modifiedCount,
     });
   } catch (error) {
-    res.status(400).json({
-      status: "error",
-      message: error.message,
-    });
+    errorResponse(res, error.message);
   }
 };
