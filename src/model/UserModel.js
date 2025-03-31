@@ -6,7 +6,7 @@ const UserSchema = new mongoose.Schema(
     name: { type: String, required: true },
     email: { type: String, unique: true, required: true },
     phone: { type: String },
-    password: { type: String }, // Optional for Google login
+    password: { type: String },
     userName: { type: String, unique: true, required: true },
     gender: { type: String },
     birthday: { type: Date },
@@ -14,11 +14,19 @@ const UserSchema = new mongoose.Schema(
     avatar: { type: String },
     refreshToken: { type: String },
     accessToken: { type: String },
-    workspace: { type: mongoose.Schema.Types.ObjectId, ref: "Workspace" },
+    workspaces: [
+      {
+        workspace: { type: mongoose.Schema.Types.ObjectId, ref: "Workspace" },
+        isOwner: { type: Boolean, default: false },
+      },
+    ],
+    currentWorkspace: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Workspace",
+    },
     hasCompletedOnboarding: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
-
 const UserModel = mongoose.model("User", UserSchema);
 export default UserModel;

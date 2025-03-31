@@ -1,25 +1,23 @@
 import express from "express";
-
+import { verifyToken } from "../middleware/authMiddleWare.js";
 import {
   createWorkspace,
   inviteMember,
   joinWorkspace,
   getWorkspaceDetails,
+  switchWorkspace,
+  userWorkspaces,
 } from "../controller/WorkspaceController.js";
-import { verifyToken } from "../middleware/authMiddleWare.js";
 
 const router = express.Router();
 
-// Create a new workspace
-router.post("/create", verifyToken, createWorkspace);
+router.use(verifyToken);
 
-// Invite a member to workspace
-router.post("/invite", verifyToken, inviteMember);
-
-// Join a workspace with invitation token
-router.post("/join/:token", verifyToken, joinWorkspace);
-
-// Get workspace details
-router.get("/details", verifyToken, getWorkspaceDetails);
+router.post("/create", createWorkspace);
+router.post("/invite", inviteMember);
+router.post("/join/:token", joinWorkspace);
+router.get("/details", getWorkspaceDetails);
+router.post("/switch", switchWorkspace);
+router.get("/user-workspaces", userWorkspaces);
 
 export default router;

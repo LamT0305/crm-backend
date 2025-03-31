@@ -5,7 +5,7 @@ export const checkWorkspaceAccess = async (req, res, next) => {
   try {
     const user = await UserModel.findById(req.user.id);
 
-    if (!user.workspace || !user.hasCompletedOnboarding) {
+    if (!user.workspaces?.length || !user.hasCompletedOnboarding) {
       return errorResponse(
         res,
         "No workspace access",
@@ -14,7 +14,17 @@ export const checkWorkspaceAccess = async (req, res, next) => {
       );
     }
 
-    req.workspaceId = user.workspace;
+    // Use currentWorkspace instead of workspace
+    if (!user.currentWorkspace) {
+      return errorResponse(
+        res,
+        "No active workspace",
+        "Please select a workspace first",
+        403
+      );
+    }
+
+    req.workspaceId = user.currentWorkspace;
     next();
   } catch (error) {
     return errorResponse(res, error.message);
