@@ -22,7 +22,7 @@ export const createComment = async (req, res) => {
       workspace: req.workspaceId,
     });
 
-    const populatedComment = await newComment
+    const populatedComment = await CommentModel.findById(newComment._id)
       .populate(populateOptions.user)
       .populate(populateOptions.customer);
 
@@ -35,7 +35,7 @@ export const createComment = async (req, res) => {
 export const getCommentsByCustomer = async (req, res) => {
   try {
     const comments = await CommentModel.find({
-      customerId: req.params.id,
+      customerId: req.params.customerId,
       workspace: req.workspaceId,
     })
       .populate(populateOptions.user)

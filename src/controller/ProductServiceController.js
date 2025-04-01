@@ -48,9 +48,9 @@ export const createProductService = async (req, res) => {
       workspace: req.workspaceId,
     });
 
-    const populatedProduct = await productService.populate(
-      populateOptions.category
-    );
+    const populatedProduct = await ProductServiceModel.findById(
+      productService._id
+    ).populate(populateOptions.category);
     successResponse(res, populatedProduct);
   } catch (error) {
     console.error("Create Product Error:", error);

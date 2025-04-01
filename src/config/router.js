@@ -15,6 +15,7 @@ import commentRoute from "../router/commentRoute.js";
 import notificationRoute from "../router/notificationRoute.js";
 import analyticsRoute from "../router/analyticsRoute.js";
 import workspaceRoute from "../router/WorkspaceRoute.js";
+import categoryRoute from "../router/categoryRoute.js";
 
 export const appRouter = (app) => {
   app.use("/api/v1/auth", authRouter);
@@ -34,4 +35,5 @@ export const appRouter = (app) => {
   app.use("/api/v1/notification", notificationRoute);
   app.use("/api/v1/analytic", analyticsRoute);
   app.use("/api/v1/workspace", workspaceRoute);
+  app.use("/api/v1/category", categoryRoute);
 };

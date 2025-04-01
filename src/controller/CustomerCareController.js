@@ -47,7 +47,7 @@ export const createCustomerCare = async (req, res) => {
       date: new Date(),
     });
 
-    const populatedCare = await customerCare
+    const populatedCare = await CustomerCareModel.findById(customerCare._id)
       .populate(populateOptions.customer)
       .populate(populateOptions.user);
 

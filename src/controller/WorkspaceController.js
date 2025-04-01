@@ -152,7 +152,15 @@ export const switchWorkspace = async (req, res) => {
     user.currentWorkspace = workspaceId;
     await user.save();
 
-    return successResponse(res, { message: "Workspace switched successfully" });
+    await user.populate({
+      path: "currentWorkspace",
+      select: "name",
+    });
+
+    return successResponse(res, {
+      message: "Workspace switched successfully",
+      currentWorkspace: user.currentWorkspace,
+    });
   } catch (error) {
     return errorResponse(res, error.message);
   }

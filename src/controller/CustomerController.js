@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 import CustomerModel from "../model/CustomerModel.js";
-import UserModel from "../model/UserModel.js";
 import { successResponse, errorResponse } from "../utils/responseHandler.js";
 
 const populateOptions = {

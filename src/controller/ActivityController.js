@@ -22,7 +22,7 @@ export const createActivity = async (req, res) => {
       workspace: req.workspaceId,
     });
 
-    const populatedActivity = await activity
+    const populatedActivity = await ActivityModel.findById(activity._id)
       .populate(populateOptions.user)
       .populate(populateOptions.customer);
 

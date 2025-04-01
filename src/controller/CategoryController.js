@@ -39,30 +39,6 @@ export const getAllCategories = async (req, res) => {
   }
 };
 
-export const updateCategory = async (req, res) => {
-  try {
-    const { name, description, status } = req.body;
-    const category = await CategoryModel.findOneAndUpdate(
-      { _id: req.params.id, workspace: req.workspaceId },
-      { name, description, status },
-      { new: true }
-    );
-
-    if (!category) {
-      return res.status(404).json({ message: "Category not found" });
-    }
-
-    return successResponse(res, category);
-  } catch (error) {
-    if (error.code === 11000) {
-      return errorResponse(
-        res,
-        "Category name already exists in this workspace"
-      );
-    }
-    return errorResponse(res, error.message);
-  }
-};
 
 export const deleteCategory = async (req, res) => {
   try {
