@@ -20,7 +20,6 @@ export const createWorkspace = async (req, res) => {
     // Update user's workspaces array
     await UserModel.findByIdAndUpdate(userId, {
       $push: { workspaces: { workspace: workspace._id, isOwner: true } },
-      currentWorkspace: workspace._id,
       hasCompletedOnboarding: true,
     });
 
@@ -50,7 +49,18 @@ export const inviteMember = async (req, res) => {
       return errorResponse(res, "Only admins can invite members", 403);
     }
 
-    // Rest of the inviteMember function remains same...
+    // generate token
+    const token = crypto.randomBytes(32).toString("hex");
+    // set expiration date
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 1); // 1 day from now
+
+    const INVITATION_URL = `${process.env.BASE_URL}/join-workspace/${token}`;
+    await sendEmail({
+      email,
+      subject: "Workspace Invitation",
+      message: `You have been invited to join the workspace ${workspace.name}. Please click the link below to accept the invitation: ${INVITATION_URL}`,
+    });
   } catch (error) {
     return errorResponse(res, error.message);
   }
@@ -169,7 +179,7 @@ export const userWorkspaces = async (req, res) => {
     }
 
     const workspaces = user.workspaces.map((ws) => ({
-      id: ws.workspace._id,
+      _id: ws.workspace._id,
       name: ws.workspace.name,
       isOwner: ws.isOwner,
       owner: ws.workspace.owner,
