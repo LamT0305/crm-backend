@@ -320,10 +320,7 @@ export const handleNewEmail = async (email, customer) => {
 
     await notification.populate("userId", "email name");
 
-    io.to(`user_${email.userId}`).emit("newEmail", {
-      type: "email",
-      data: { notification, customerId: customer._id },
-    });
+    io.to(`user_${email.userId}`).emit("newEmail");
 
     return notification;
   } catch (error) {
