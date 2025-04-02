@@ -180,80 +180,41 @@ export const fetchReplies = async () => {
       users.map(async (user) => {
         try {
           await refreshAccessToken(user._id);
-          const messagesList = await gmail.users.messages
-            .list({
-              userId: "me",
-              q: "in:inbox OR in:sent newer_than:1d",
-              maxResults: 50,
-            })
-            .catch((error) => {
-              console.error(
-                `Failed to fetch messages for ${user.email}:`,
-                error
-              );
-              return null;
-            });
+          const messagesList = await gmail.users.messages.list({
+            userId: "me",
+            labelIds: ["INBOX"],
+            maxResults: 20,
+          });
 
-          if (!messagesList?.data?.messages) {
-            console.log(`No messages found for user: ${user.email}`);
-            return;
-          }
+          if (!messagesList.data.messages) return;
 
           await Promise.all(
             messagesList.data.messages.map(async (msg) => {
               try {
-                if (!msg.id) {
-                  console.log("⚠️ Invalid message ID, skipping...");
-                  return;
-                }
-
-                const msgData = await gmail.users.messages
-                  .get({
-                    userId: "me",
-                    id: msg.id,
-                    format: "full",
-                  })
-                  .catch((error) => {
-                    if (error.code === 404) {
-                      console.log(
-                        `⚠️ Message ${msg.id} not found in Gmail, skipping...`
-                      );
-                      return null;
-                    }
-                    throw error;
-                  });
-
-                if (!msgData?.data?.payload?.headers) {
-                  console.log(`⚠️ Invalid message data for ID: ${msg.id}`);
-                  return;
-                }
+                const msgData = await gmail.users.messages.get({
+                  userId: "me",
+                  id: msg.id,
+                });
 
                 const messageId = msgData.data.id;
                 const headers = msgData.data.payload.headers;
                 const from =
                   headers.find((h) => h.name === "From")?.value ||
                   "Unknown Sender";
-                const to =
-                  headers.find((h) => h.name === "To")?.value ||
-                  "Unknown Recipient";
                 const senderEmail = extractEmailAddress(from);
-                const recipientEmail = extractEmailAddress(to);
 
-                // First check if the sender is a customer in our system
                 const customer = await CustomerModel.findOne({
                   email: senderEmail,
                 }).lean();
 
-                // Skip if sender is not a customer
                 if (!customer) {
-                  console.log(
-                    `⚠️ Skipping email from non-customer: ${senderEmail}`
-                  );
+                  console.log(`⚠️ Skipping non-customer email: ${senderEmail}`);
                   return;
                 }
 
                 const existingEmail = await EmailModel.findOne({
                   messageId,
+                  workspace: customer.workspace,
                 }).lean();
 
                 if (existingEmail) {
@@ -268,16 +229,9 @@ export const fetchReplies = async () => {
                   "No Subject";
                 const threadId = msgData.data.threadId;
                 const sentAt = new Date(parseInt(msgData.data.internalDate));
+
                 const body = getEmailBody(msgData.data.payload);
-                const attachments = await fetchAttachments(msgData.data).catch(
-                  (error) => {
-                    console.error(
-                      `Error fetching attachments for message ${messageId}:`,
-                      error
-                    );
-                    return [];
-                  }
-                );
+                const attachments = await fetchAttachments(msgData.data);
 
                 const newEmail = await EmailModel.create({
                   userId: user._id,
@@ -294,23 +248,9 @@ export const fetchReplies = async () => {
                 });
 
                 await handleNewEmail(newEmail, customer);
-
-                console.log(
-                  `📩 Stored incoming email from customer: ${customer.email}`
-                );
+                console.log(`📩 Stored email from customer: ${senderEmail}`);
               } catch (error) {
-                if (error.code === 404) {
-                  console.log(`⚠️ Message ${msg.id} not found, skipping...`);
-                  return;
-                }
                 console.error(`Error processing message ${msg.id}:`, error);
-
-                const io = getIO();
-                io.emit("gmail_error", {
-                  error: error.message,
-                  messageId: msg.id,
-                  status: error.code || 500,
-                });
               }
             })
           );
@@ -375,24 +315,22 @@ export const handleNewEmail = async (email, customer) => {
       message: `New email received from ${email.to}`,
       title: `New Email: ${email.subject}`,
       status: "Unread",
-      workspace: email.workspace,
+      type: "email",
       link: `${process.env.FRONTEND_URL}/customerinfo/${customer._id}`,
+      workspace: email.workspace,
     });
 
     await notification.populate("userId", "email name");
 
-    // Emit to specific user's room with notification data
     io.to(`user_${email.userId}`).emit("newEmail", {
-      notification,
-      email: {
-        id: email._id,
-        subject: email.subject,
-        from: email.to,
-        customerId: customer._id,
-      },
+      type: "email",
+      data: { notification, customerId: customer._id },
     });
 
-    console.log(`📧 Emitted new email notification to user ${email.userId}`);
+    io.to(`user_${email.userId}`).emit("updateEmails", {
+      customerId: customer._id,
+    });
+
     return notification;
   } catch (error) {
     console.error("Error handling new email notification:", error);
