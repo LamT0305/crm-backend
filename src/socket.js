@@ -13,10 +13,9 @@ const setupSocket = (server) => {
   io.on("connection", (socket) => {
     console.log(`🔥 New client connected: ${socket.id}`);
 
-    // Join user-specific room for notifications
     socket.on("join", (userId) => {
       socket.join(`user_${userId}`);
-      console.log(`User ${userId} joined their notification room`);
+      console.log(`👤 User ${userId} joined their notification room`);
     });
 
     socket.on("disconnect", () => {

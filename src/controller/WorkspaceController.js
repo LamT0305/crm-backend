@@ -89,18 +89,32 @@ export const inviteMember = async (req, res) => {
     });
 
     // notification
-    const notification = {
+    const notification = await NotificationModel.create({
       userId: recipient._id,
       title: "Workspace Invitation",
       message: `You have been invited to join the workspace "${workspace.name}" by ${user.name}.`,
+      status: "Unread",
       link: INVITATION_URL,
       workspace: workspace._id,
-    };
+    });
 
-    await NotificationModel.create(notification);
+    await notification.populate("userId", "email name");
 
     const io = getIO();
-    io.to(recipient._id.toString()).emit("notiInvite", notification);
+    io.to(`user_${recipient._id}`).emit("notiInvite", {
+      type: "workspace_invite",
+      data: {
+        notification,
+        sender: {
+          name: user.name,
+          email: user.email,
+        },
+        workspace: {
+          name: workspace.name,
+          id: workspace._id,
+        },
+      },
+    });
 
     return successResponse(res, {
       message: "Invitation sent successfully",
@@ -143,16 +157,34 @@ export const joinWorkspace = async (req, res) => {
     });
 
     // notification
-    const notification = {
+    const user = await UserModel.findById(userId);
+    const notification = await NotificationModel.create({
       userId: workspace.owner,
       title: "New Member Joined",
       message: `${user.name} has joined the workspace "${workspace.name}".`,
-      link: "",
+      status: "Unread",
+      link: `${process.env.FRONTEND_URL}/workspace/${workspace._id}/members`,
       workspace: workspace._id,
-    };
-    await NotificationModel.create(notification);
+    });
+
+    await notification.populate("userId", "email name");
+
     const io = getIO();
-    io.to(workspace.owner.toString()).emit("notiJoin", notification);
+    io.to(`user_${workspace.owner}`).emit("notiJoin", {
+      type: "workspace_join",
+      data: {
+        notification,
+        member: {
+          name: user.name,
+          email: user.email,
+          id: user._id,
+        },
+        workspace: {
+          name: workspace.name,
+          id: workspace._id,
+        },
+      },
+    });
     return successResponse(res, { message: "Joined workspace successfully" });
   } catch (error) {
     return errorResponse(res, error.message);

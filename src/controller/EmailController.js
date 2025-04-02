@@ -320,8 +320,18 @@ export const handleNewEmail = async (email, customer) => {
 
     await notification.populate("userId", "email name");
 
-    io.to(`user_${email.userId}`).emit("newEmail");
+    // Emit to specific user's room with notification data
+    io.to(`user_${email.userId}`).emit("newEmail", {
+      notification,
+      email: {
+        id: email._id,
+        subject: email.subject,
+        from: email.to,
+        customerId: customer._id,
+      },
+    });
 
+    console.log(`📧 Emitted new email notification to user ${email.userId}`);
     return notification;
   } catch (error) {
     console.error("Error handling new email notification:", error);
