@@ -62,6 +62,11 @@ export const inviteMember = async (req, res) => {
       subject: "Workspace Invitation",
       message: `You have been invited to join the workspace ${workspace.name}. Please click the link below to accept the invitation: ${INVITATION_URL}`,
     });
+    workspace.invitations.push({
+      email,
+      token,
+      expiresAt,
+    });
     successResponse(res, {
       message: "Invitation sent successfully",
     });
@@ -73,7 +78,7 @@ export const inviteMember = async (req, res) => {
 
 export const joinWorkspace = async (req, res) => {
   try {
-    const { token } = req.params;
+    const { token } = req.params.token;
     const userId = req.user.id;
 
     const workspace = await WorkspaceModel.findOne({
