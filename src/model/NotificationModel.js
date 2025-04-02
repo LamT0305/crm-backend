@@ -1,3 +1,4 @@
+import { link } from "fs";
 import mongoose from "mongoose";
 
 const NotificationSchema = new mongoose.Schema({
@@ -9,6 +10,7 @@ const NotificationSchema = new mongoose.Schema({
   title: String,
   message: String,
   status: { type: String, enum: ["Unread", "Read"] },
+  link: String,
   workspace: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Workspace",

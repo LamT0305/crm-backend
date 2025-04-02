@@ -3,6 +3,8 @@ import UserModel from "../model/UserModel.js";
 import { successResponse, errorResponse } from "../utils/responseHandler.js";
 import crypto from "crypto";
 import { sendInvitationEmail } from "./EmailController.js";
+import NotificationModel from "../model/NotificationModel.js";
+import { getIO } from "../socket.js";
 
 export const createWorkspace = async (req, res) => {
   try {
@@ -34,6 +36,21 @@ export const inviteMember = async (req, res) => {
   try {
     const { email } = req.body;
     const userId = req.user.id;
+
+    if (!email) {
+      return errorResponse(res, "Email is required");
+    }
+    const recipient = await UserModel.findOne({ email: email });
+    if (!recipient) {
+      return errorResponse(res, "User not found");
+    }
+    // Check if user is already a member of the workspace
+    const existingMember = workspace.members.find(
+      (m) => m.user.toString() === recipient._id.toString()
+    );
+    if (existingMember) {
+      return errorResponse(res, "User is already a member of the workspace");
+    }
 
     const user = await UserModel.findById(userId);
     const workspace = await WorkspaceModel.findById(user.currentWorkspace);
@@ -71,6 +88,20 @@ export const inviteMember = async (req, res) => {
       message: `You have been invited to join the workspace "${workspace.name}" by ${user.name}. Please click the link below to accept the invitation: ${INVITATION_URL}`,
     });
 
+    // notification
+    const notification = {
+      userId: recipient._id,
+      title: "Workspace Invitation",
+      message: `You have been invited to join the workspace "${workspace.name}" by ${user.name}.`,
+      link: INVITATION_URL,
+      workspace: workspace._id,
+    };
+
+    await NotificationModel.create(notification);
+
+    const io = getIO();
+    io.to(recipient._id.toString()).emit("notiInvite", notification);
+
     return successResponse(res, {
       message: "Invitation sent successfully",
     });
@@ -82,7 +113,7 @@ export const inviteMember = async (req, res) => {
 
 export const joinWorkspace = async (req, res) => {
   try {
-    const { token } = req.params.token;
+    const { token } = req.params;
     const userId = req.user.id;
 
     const workspace = await WorkspaceModel.findOne({
@@ -111,6 +142,17 @@ export const joinWorkspace = async (req, res) => {
       hasCompletedOnboarding: true,
     });
 
+    // notification
+    const notification = {
+      userId: workspace.owner,
+      title: "New Member Joined",
+      message: `${user.name} has joined the workspace "${workspace.name}".`,
+      link: "",
+      workspace: workspace._id,
+    };
+    await NotificationModel.create(notification);
+    const io = getIO();
+    io.to(workspace.owner.toString()).emit("notiJoin", notification);
     return successResponse(res, { message: "Joined workspace successfully" });
   } catch (error) {
     return errorResponse(res, error.message);

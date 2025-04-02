@@ -315,6 +315,7 @@ export const handleNewEmail = async (email, customer) => {
       title: `New Email: ${email.subject}`,
       status: "Unread",
       workspace: email.workspace,
+      link: `${process.env.FRONTEND_URL}/customerinfo/${customer._id}`,
     });
 
     await notification.populate("userId", "email name");
