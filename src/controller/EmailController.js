@@ -157,6 +157,7 @@ export const getEmails = async (req, res) => {
     }
 
     const emails = await EmailModel.find({
+      userId: req.user.id,
       workspace: req.workspaceId,
       to: customer.email,
       isDeleted: { $ne: true },
@@ -238,18 +239,21 @@ export const fetchReplies = async () => {
                 const senderEmail = extractEmailAddress(from);
                 const recipientEmail = extractEmailAddress(to);
 
+                // First check if the sender is a customer in our system
                 const customer = await CustomerModel.findOne({
-                  email: { $in: [senderEmail, recipientEmail] },
+                  email: senderEmail,
                 }).lean();
 
+                // Skip if sender is not a customer
                 if (!customer) {
-                  console.log(`⚠️ Skipping non-customer email: ${senderEmail}`);
+                  console.log(
+                    `⚠️ Skipping email from non-customer: ${senderEmail}`
+                  );
                   return;
                 }
 
                 const existingEmail = await EmailModel.findOne({
                   messageId,
-                  workspace: customer.workspace,
                 }).lean();
 
                 if (existingEmail) {
@@ -275,14 +279,12 @@ export const fetchReplies = async () => {
                   }
                 );
 
-                const isIncoming = senderEmail === customer.email;
-
                 const newEmail = await EmailModel.create({
                   userId: user._id,
-                  to: customer.email,
+                  to: senderEmail,
                   subject,
                   message: body,
-                  status: isIncoming ? "received" : "sent",
+                  status: "received",
                   threadId,
                   messageId,
                   sentAt,
@@ -291,14 +293,10 @@ export const fetchReplies = async () => {
                   workspace: customer.workspace,
                 });
 
-                if (isIncoming) {
-                  await handleNewEmail(newEmail, customer);
-                }
+                await handleNewEmail(newEmail, customer);
 
                 console.log(
-                  `📩 Stored ${
-                    isIncoming ? "incoming" : "outgoing"
-                  } email for customer: ${customer.email}`
+                  `📩 Stored incoming email from customer: ${customer.email}`
                 );
               } catch (error) {
                 if (error.code === 404) {
