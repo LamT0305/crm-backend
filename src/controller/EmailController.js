@@ -324,8 +324,6 @@ export const handleNewEmail = async (email, customer) => {
       data: { notification, customerId: customer._id },
     });
 
-    
-
     return notification;
   } catch (error) {
     console.error("Error handling new email notification:", error);
@@ -372,5 +370,27 @@ export const handleDeleteEmail = async (req, res) => {
       error: "Internal Server Error",
       details: error.message,
     });
+  }
+};
+
+// Add this new function at the top of the file, after the imports
+export const sendInvitationEmail = async ({ email, subject, message }) => {
+  try {
+    const emailBody = createEmailBody(email, subject, message);
+
+    const rawMessage = Buffer.from(emailBody.join("\n"))
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_");
+
+    await gmail.users.messages.send({
+      userId: "me",
+      requestBody: { raw: rawMessage },
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Send invitation email error:", error);
+    throw error;
   }
 };

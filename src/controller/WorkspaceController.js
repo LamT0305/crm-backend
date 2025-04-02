@@ -2,7 +2,7 @@ import WorkspaceModel from "../model/WorkspaceModel.js";
 import UserModel from "../model/UserModel.js";
 import { successResponse, errorResponse } from "../utils/responseHandler.js";
 import crypto from "crypto";
-import { sendEmail } from "./EmailController.js";
+import { sendInvitationEmail } from "./EmailController.js";
 
 export const createWorkspace = async (req, res) => {
   try {
@@ -57,7 +57,7 @@ export const inviteMember = async (req, res) => {
     expiresAt.setDate(expiresAt.getDate() + 1); // 1 day from now
 
     const INVITATION_URL = `${process.env.FRONTEND_URL}/join-workspace/${token}`;
-    await sendEmail({
+    await sendInvitationEmail({
       email,
       subject: "Workspace Invitation",
       message: `You have been invited to join the workspace ${workspace.name}. Please click the link below to accept the invitation: ${INVITATION_URL}`,
