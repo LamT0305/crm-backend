@@ -184,15 +184,16 @@ export const updateDeal = async (req, res) => {
             message: `Product not found: ${product.productId}`,
           });
         }
+        if (productDoc.stock > 0) {
+          if (productDoc.stock < product.quantity) {
+            return res.status(400).json({
+              message: `Insufficient stock for product: ${productDoc.name}`,
+            });
+          }
 
-        if (productDoc.stock < product.quantity) {
-          return res.status(400).json({
-            message: `Insufficient stock for product: ${productDoc.name}`,
-          });
+          productDoc.stock -= product.quantity;
+          await productDoc.save();
         }
-
-        productDoc.stock -= product.quantity;
-        await productDoc.save();
       }
     }
 

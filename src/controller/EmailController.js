@@ -75,18 +75,9 @@ export const sendEmail = async (req, res) => {
           .json({ error: "File upload failed", details: err });
       }
 
-      const { to, subject, message, customerId } = req.body;
-      if (!to || !subject || !message || !customerId) {
+      const { to, subject, message } = req.body;
+      if (!to || !subject || !message) {
         return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      const customer = await CustomerModel.findOne({
-        _id: customerId,
-        workspace: req.workspaceId,
-      });
-
-      if (!customer) {
-        return res.status(404).json({ error: "Customer not found" });
       }
 
       const attachments = [];
@@ -128,7 +119,6 @@ export const sendEmail = async (req, res) => {
 
       const sentEmail = await EmailModel.create({
         userId: req.user.id,
-        customerId,
         to,
         subject,
         message,
@@ -141,10 +131,7 @@ export const sendEmail = async (req, res) => {
         workspace: req.workspaceId,
       });
 
-      await sentEmail.populate([
-        { path: "userId", select: "email name" },
-        { path: "customerId", select: "firstName lastName email" },
-      ]);
+      await sentEmail.populate([{ path: "userId", select: "email name" }]);
 
       res.status(200).json({
         success: true,
@@ -160,10 +147,8 @@ export const sendEmail = async (req, res) => {
 
 export const getEmails = async (req, res) => {
   try {
-    const { customerId } = req.params.id;
-
     const customer = await CustomerModel.findOne({
-      _id: customerId,
+      _id: req.params.id,
       workspace: req.workspaceId,
     });
 
@@ -173,7 +158,7 @@ export const getEmails = async (req, res) => {
 
     const emails = await EmailModel.find({
       workspace: req.workspaceId,
-      customerId,
+      to: customer.email,
       isDeleted: { $ne: true },
     })
       .populate("userId", "email name")
@@ -250,7 +235,6 @@ export const fetchReplies = async () => {
 
                 const newEmail = await EmailModel.create({
                   userId: user._id,
-                  customerId: customer._id,
                   to: senderEmail,
                   subject,
                   message: body,
