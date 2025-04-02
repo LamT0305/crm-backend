@@ -162,7 +162,6 @@ export const getEmails = async (req, res) => {
       isDeleted: { $ne: true },
     })
       .populate("userId", "email name")
-      .populate("customerId", "firstName lastName email")
       .sort({ sentAt: -1 })
       .lean();
 
@@ -247,7 +246,7 @@ export const fetchReplies = async () => {
                   workspace: customer.workspace,
                 });
 
-                await handleNewEmail(newEmail);
+                await handleNewEmail(newEmail, customer);
                 console.log(`📩 Stored email from customer: ${senderEmail}`);
               } catch (error) {
                 console.error(`Error processing message ${msg.id}:`, error);
@@ -306,7 +305,7 @@ const fetchAttachments = async (emailData) => {
   return results.filter(Boolean);
 };
 
-export const handleNewEmail = async (email) => {
+export const handleNewEmail = async (email, customer) => {
   try {
     const io = getIO();
 
@@ -323,11 +322,11 @@ export const handleNewEmail = async (email) => {
 
     io.to(`user_${email.userId}`).emit("newEmail", {
       type: "email",
-      data: { notification, customerId: email.customerId },
+      data: { notification, customerId: customer._id },
     });
 
     io.to(`user_${email.userId}`).emit("updateEmails", {
-      customerId: email.customerId,
+      customerId: customer._id,
     });
 
     return notification;
