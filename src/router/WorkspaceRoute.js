@@ -15,7 +15,7 @@ router.use(verifyToken);
 
 router.post("/create", createWorkspace);
 router.post("/invite", inviteMember);
-router.post("/join/:token", joinWorkspace);
+router.get("/join/:token", joinWorkspace);
 router.get("/details", getWorkspaceDetails);
 router.post("/switch", switchWorkspace);
 router.get("/user-workspaces", userWorkspaces);

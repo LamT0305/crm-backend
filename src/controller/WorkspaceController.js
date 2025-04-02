@@ -56,20 +56,22 @@ export const inviteMember = async (req, res) => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 1); // 1 day from now
 
-    const INVITATION_URL = `${process.env.FRONTEND_URL}/join-workspace/${token}`;
-    await sendInvitationEmail({
-      email,
-      subject: "Workspace Invitation",
-      message: `You have been invited to join the workspace ${workspace.name}. Please click the link below to accept the invitation: ${INVITATION_URL}`,
-    });
+    // Save invitation before sending email
     workspace.invitations.push({
       email,
       token,
       expiresAt,
     });
     await workspace.save();
-    
-    successResponse(res, {
+
+    const INVITATION_URL = `${process.env.FRONTEND_URL}/join-workspace/${token}`;
+    await sendInvitationEmail({
+      email,
+      subject: "Workspace Invitation",
+      message: `You have been invited to join the workspace "${workspace.name}" by ${user.name}. Please click the link below to accept the invitation: ${INVITATION_URL}`,
+    });
+
+    return successResponse(res, {
       message: "Invitation sent successfully",
     });
   } catch (error) {
