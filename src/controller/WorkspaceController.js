@@ -18,7 +18,7 @@ export const createWorkspace = async (req, res) => {
     await workspace.save();
 
     // Update user's workspaces array
-     await UserModel.findByIdAndUpdate(userId, {
+    await UserModel.findByIdAndUpdate(userId, {
       $push: { workspaces: { workspace: workspace._id, isOwner: true } },
       hasCompletedOnboarding: true,
       currentWorkspace: workspace._id,
@@ -56,12 +56,13 @@ export const inviteMember = async (req, res) => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 1); // 1 day from now
 
-    const INVITATION_URL = `${process.env.BASE_URL}/join-workspace/${token}`;
+    const INVITATION_URL = `${process.env.FRONTEND_URL}/join-workspace/${token}`;
     await sendEmail({
       email,
       subject: "Workspace Invitation",
       message: `You have been invited to join the workspace ${workspace.name}. Please click the link below to accept the invitation: ${INVITATION_URL}`,
     });
+    successResponse(res, { message: "Invitation sent successfully" });
   } catch (error) {
     return errorResponse(res, error.message);
   }
