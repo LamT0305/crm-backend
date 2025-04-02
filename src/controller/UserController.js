@@ -63,11 +63,11 @@ export const updateUserProfile = async (req, res) => {
 
 export const viewListUsers = async (req, res) => {
   try {
-    const users = await UserModel.find({ workspace: req.workspaceId })
+    const users = await UserModel.find()
       .select("-password -refreshToken -accessToken")
       .sort({ createdAt: -1 });
 
-    successResponse(res, { users });
+    successResponse(res, users);
   } catch (error) {
     errorResponse(res, error.message);
   }

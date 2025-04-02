@@ -314,7 +314,6 @@ export const handleNewEmail = async (email, customer) => {
       message: `New email received from ${email.to}`,
       title: `New Email: ${email.subject}`,
       status: "Unread",
-      type: "email",
       workspace: email.workspace,
     });
 
@@ -325,9 +324,7 @@ export const handleNewEmail = async (email, customer) => {
       data: { notification, customerId: customer._id },
     });
 
-    io.to(`user_${email.userId}`).emit("updateEmails", {
-      customerId: customer._id,
-    });
+    
 
     return notification;
   } catch (error) {

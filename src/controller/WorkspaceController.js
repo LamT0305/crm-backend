@@ -18,9 +18,10 @@ export const createWorkspace = async (req, res) => {
     await workspace.save();
 
     // Update user's workspaces array
-    await UserModel.findByIdAndUpdate(userId, {
+     await UserModel.findByIdAndUpdate(userId, {
       $push: { workspaces: { workspace: workspace._id, isOwner: true } },
       hasCompletedOnboarding: true,
+      currentWorkspace: workspace._id,
     });
 
     return successResponse(res, workspace);
