@@ -67,6 +67,8 @@ export const inviteMember = async (req, res) => {
       token,
       expiresAt,
     });
+    await workspace.save();
+    
     successResponse(res, {
       message: "Invitation sent successfully",
     });
