@@ -62,8 +62,11 @@ export const inviteMember = async (req, res) => {
       subject: "Workspace Invitation",
       message: `You have been invited to join the workspace ${workspace.name}. Please click the link below to accept the invitation: ${INVITATION_URL}`,
     });
-    successResponse(res, { message: "Invitation sent successfully" });
+    successResponse(res, {
+      message: "Invitation sent successfully",
+    });
   } catch (error) {
+    console.log(error);
     return errorResponse(res, error.message);
   }
 };
