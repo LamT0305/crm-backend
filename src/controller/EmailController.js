@@ -182,12 +182,12 @@ export const fetchReplies = async () => {
           const messagesList = await gmail.users.messages
             .list({
               userId: "me",
-              labelIds: ["INBOX"],
-              maxResults: 20,
+              q: "in:inbox OR in:sent newer_than:1d",
+              maxResults: 50,
             })
             .catch((error) => {
               console.error(
-                `Failed to fetch messages list for user ${user.email}:`,
+                `Failed to fetch messages for ${user.email}:`,
                 error
               );
               return null;
@@ -210,6 +210,7 @@ export const fetchReplies = async () => {
                   .get({
                     userId: "me",
                     id: msg.id,
+                    format: "full",
                   })
                   .catch((error) => {
                     if (error.code === 404) {
@@ -231,10 +232,14 @@ export const fetchReplies = async () => {
                 const from =
                   headers.find((h) => h.name === "From")?.value ||
                   "Unknown Sender";
+                const to =
+                  headers.find((h) => h.name === "To")?.value ||
+                  "Unknown Recipient";
                 const senderEmail = extractEmailAddress(from);
+                const recipientEmail = extractEmailAddress(to);
 
                 const customer = await CustomerModel.findOne({
-                  email: senderEmail,
+                  email: { $in: [senderEmail, recipientEmail] },
                 }).lean();
 
                 if (!customer) {
@@ -259,7 +264,6 @@ export const fetchReplies = async () => {
                   "No Subject";
                 const threadId = msgData.data.threadId;
                 const sentAt = new Date(parseInt(msgData.data.internalDate));
-
                 const body = getEmailBody(msgData.data.payload);
                 const attachments = await fetchAttachments(msgData.data).catch(
                   (error) => {
@@ -271,12 +275,14 @@ export const fetchReplies = async () => {
                   }
                 );
 
+                const isIncoming = senderEmail === customer.email;
+
                 const newEmail = await EmailModel.create({
                   userId: user._id,
-                  to: senderEmail,
+                  to: customer.email,
                   subject,
                   message: body,
-                  status: "received",
+                  status: isIncoming ? "received" : "sent",
                   threadId,
                   messageId,
                   sentAt,
@@ -285,8 +291,15 @@ export const fetchReplies = async () => {
                   workspace: customer.workspace,
                 });
 
-                await handleNewEmail(newEmail, customer);
-                console.log(`📩 Stored email from customer: ${senderEmail}`);
+                if (isIncoming) {
+                  await handleNewEmail(newEmail, customer);
+                }
+
+                console.log(
+                  `📩 Stored ${
+                    isIncoming ? "incoming" : "outgoing"
+                  } email for customer: ${customer.email}`
+                );
               } catch (error) {
                 if (error.code === 404) {
                   console.log(`⚠️ Message ${msg.id} not found, skipping...`);
