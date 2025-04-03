@@ -291,3 +291,193 @@ export const userWorkspaces = async (req, res) => {
     return errorResponse(res, error.message);
   }
 };
+
+export const updateWorkspaceName = async (req, res) => {
+  try {
+    const { workspaceId, name } = req.body;
+    const userId = req.user.id;
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return errorResponse(res, "User not found", 404);
+    }
+    const workspace = await WorkspaceModel.findById(workspaceId);
+    if (!workspace) {
+      return errorResponse(res, "Workspace not found", 404);
+    }
+    const memberRecord = workspace.members.find(
+      (m) => m.user.toString() === userId && m.role === "Admin"
+    );
+    if (!memberRecord) {
+      return errorResponse(res, "Only admins can update workspace name", 403);
+    }
+    workspace.name = name;
+    await workspace.save();
+
+    await workspace.populate({
+      path: "members.user",
+      select: "name email",
+    });
+
+    await workspace.populate("owner", "name email");
+
+    return successResponse(res, {
+      message: "Workspace name updated successfully",
+      workspace,
+    });
+  } catch (error) {
+    return errorResponse(res, error.message);
+  }
+};
+
+export const deleteWorkspace = async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+    const userId = req.user.id;
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return errorResponse(res, "User not found", 404);
+    }
+    const workspace = await WorkspaceModel.findById(workspaceId);
+    if (!workspace) {
+      return errorResponse(res, "Workspace not found", 404);
+    }
+    const memberRecord = workspace.members.find(
+      (m) => m.user.toString() === userId && m.role === "Admin"
+    );
+    if (!memberRecord) {
+      return errorResponse(res, "Only admins can delete workspace", 403);
+    }
+    await workspace.deleteOne();
+    user.workspaces = user.workspaces.filter(
+      (ws) => ws.workspace.toString() !== workspaceId
+    );
+
+    // If deleted workspace was current, find the next available workspace
+    if (user.currentWorkspace?.toString() === workspaceId) {
+      // Get the first available workspace, if any
+      const nextWorkspace = user.workspaces[0]?.workspace || null;
+      user.currentWorkspace = nextWorkspace;
+    }
+
+    await user.save();
+    return successResponse(res, {
+      message: "Workspace deleted successfully",
+    });
+  } catch (error) {
+    return errorResponse(res, error.message);
+  }
+};
+
+export const leaveWorkspace = async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+    const userId = req.user.id;
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return errorResponse(res, "User not found", 404);
+    }
+    const workspace = await WorkspaceModel.findById(workspaceId);
+    if (!workspace) {
+      return errorResponse(res, "Workspace not found", 404);
+    }
+    const memberRecord = workspace.members.find(
+      (m) => m.user.toString() === userId
+    );
+    if (!memberRecord) {
+      return errorResponse(res, "You are not a member of this workspace", 403);
+    }
+    if (memberRecord.role === "Admin") {
+      return errorResponse(res, "Admins cannot leave the workspace", 403);
+    }
+    workspace.members = workspace.members.filter(
+      (m) => m.user.toString() !== userId
+    );
+    await workspace.save();
+    user.workspaces = user.workspaces.filter(
+      (ws) => ws.workspace.toString() !== workspaceId
+    );
+    // If deleted workspace was current, find the next available workspace
+    if (user.currentWorkspace?.toString() === workspaceId) {
+      // Get the first available workspace, if any
+      const nextWorkspace = user.workspaces[0]?.workspace || null;
+      user.currentWorkspace = nextWorkspace;
+    }
+    await user.save();
+    return successResponse(res, {
+      message: "Left workspace successfully",
+    });
+  } catch (error) {
+    return errorResponse(res, error.message);
+  }
+};
+
+export const deleteMember = async (req, res) => {
+  try {
+    const { workspaceId, userId } = req.params;
+    const currentUserId = req.user.id;
+    const currentUser = await UserModel.findById(currentUserId);
+    if (!currentUser) {
+      return errorResponse(res, "User not found", 404);
+    }
+    const userDelete = await UserModel.findById(userId);
+
+    if (!userDelete) {
+      return errorResponse(res, "User delete not found", 404);
+    }
+
+    const workspace = await WorkspaceModel.findById(workspaceId);
+    if (!workspace) {
+      return errorResponse(res, "Workspace not found", 404);
+    }
+    const memberRecord = workspace.members.find(
+      (m) => m.user.toString() === currentUserId && m.role === "Admin"
+    );
+    if (!memberRecord) {
+      return errorResponse(res, "Only admins can delete members", 403);
+    }
+    const memberToDelete = workspace.members.find(
+      (m) => m.user.toString() === userId
+    );
+    if (!memberToDelete) {
+      return errorResponse(res, "Member not found", 404);
+    }
+    if (memberToDelete.role === "Admin") {
+      return errorResponse(res, "Admins cannot be deleted", 403);
+    }
+    workspace.members = workspace.members.filter(
+      (m) => m.user.toString() !== userId
+    );
+    await workspace.save();
+
+    userDelete.workspaces = userDelete.workspaces.filter(
+      (ws) => ws.workspace.toString() !== workspaceId
+    );
+
+    if (userDelete.currentWorkspace?.toString() === workspaceId) {
+      // Get the first available workspace, if any
+      const nextWorkspace = userDelete.workspaces[0]?.workspace || null;
+      userDelete.currentWorkspace = nextWorkspace;
+    }
+    await userDelete.save();
+
+    const notification = await NotificationModel.create({
+      userId: userId,
+      title: "Workspace Removal",
+      message: `You have been removed from the workspace "${workspace.name}"`,
+      status: "Unread",
+      workspace: workspace._id,
+    });
+
+    // Emit socket event to notify the user
+    const io = getIO();
+    io.to(`user_${userId}`).emit("workspaceRemoval", {
+      type: "workspace_removal",
+      data: notification,
+    });
+    return successResponse(res, {
+      message: "Member deleted successfully",
+    });
+  } catch (error) {
+    return errorResponse(res, error.message);
+  }
+};

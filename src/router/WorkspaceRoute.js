@@ -7,6 +7,10 @@ import {
   getWorkspaceDetails,
   switchWorkspace,
   userWorkspaces,
+  updateWorkspaceName,
+  deleteWorkspace,
+  leaveWorkspace,
+  deleteMember,
 } from "../controller/WorkspaceController.js";
 
 const router = express.Router();
@@ -19,5 +23,10 @@ router.get("/join/:token", joinWorkspace);
 router.get("/details", getWorkspaceDetails);
 router.post("/switch", switchWorkspace);
 router.get("/user-workspaces", userWorkspaces);
+
+router.put("/update-name", updateWorkspaceName);
+router.delete("/delete/:workspaceId", deleteWorkspace);
+router.delete("/leave/:workspaceId", leaveWorkspace);
+router.delete("/member/:workspaceId/:userId", deleteMember);
 
 export default router;
