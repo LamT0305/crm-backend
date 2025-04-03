@@ -347,19 +347,26 @@ export const deleteWorkspace = async (req, res) => {
     if (!memberRecord) {
       return errorResponse(res, "Only admins can delete workspace", 403);
     }
-    await workspace.deleteOne();
-    user.workspaces = user.workspaces.filter(
-      (ws) => ws.workspace.toString() !== workspaceId
+    // Update currentWorkspace for all members
+    await Promise.all(
+      workspace.members.map(async (member) => {
+        const memberUser = await UserModel.findById(member.user);
+        if (memberUser) {
+          // Remove workspace from user's workspaces array
+          memberUser.workspaces = memberUser.workspaces.filter(
+            (ws) => ws.workspace.toString() !== workspaceId
+          );
+
+          // Update currentWorkspace if needed
+          if (memberUser.currentWorkspace?.toString() === workspaceId) {
+            memberUser.currentWorkspace =
+              memberUser.workspaces[0]?.workspace || null;
+          }
+          await memberUser.save();
+        }
+      })
     );
-
-    // If deleted workspace was current, find the next available workspace
-    if (user.currentWorkspace?.toString() === workspaceId) {
-      // Get the first available workspace, if any
-      const nextWorkspace = user.workspaces[0]?.workspace || null;
-      user.currentWorkspace = nextWorkspace;
-    }
-
-    await user.save();
+    await workspace.deleteOne();
     return successResponse(res, {
       message: "Workspace deleted successfully",
     });
