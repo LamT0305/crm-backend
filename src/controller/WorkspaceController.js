@@ -122,9 +122,23 @@ export const joinWorkspace = async (req, res) => {
     const { token } = req.params;
     const userId = req.user.id;
 
+    const existingUser = await UserModel.findById(userId);
+    if (!existingUser) {
+      return errorResponse(res, "User not found");
+    }
+
     const workspace = await WorkspaceModel.findOne({
       "invitations.token": token,
     });
+
+    // Check if workspace exists and invitation is valid
+    const isJoinded = existingUser.workspaces.some(
+      (ws) => ws.workspace.toString() === workspace._id.toString()
+    );
+
+    if (isJoinded) {
+      return errorResponse(res, "You are already a member of this workspace");
+    }
 
     if (!workspace) {
       return errorResponse(res, "Invalid or expired invitation");
