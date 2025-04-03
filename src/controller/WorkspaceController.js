@@ -103,17 +103,7 @@ export const inviteMember = async (req, res) => {
     const io = getIO();
     io.to(`user_${recipient._id}`).emit("notiInvite", {
       type: "workspace_invite",
-      data: {
-        notification,
-        sender: {
-          name: user.name,
-          email: user.email,
-        },
-        workspace: {
-          name: workspace.name,
-          id: workspace._id,
-        },
-      },
+      data: notification,
     });
 
     return successResponse(res, {
