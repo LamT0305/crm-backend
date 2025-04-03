@@ -5,8 +5,10 @@ let io;
 const setupSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: "*",
+      origin: "http://localhost:5173", // Specific origin instead of "*"
       methods: ["GET", "POST"],
+      credentials: true,
+      allowedHeaders: ["Content-Type", "Authorization"]
     },
   });
 
@@ -25,7 +27,6 @@ const setupSocket = (server) => {
 
   return io;
 };
-
 export const getIO = () => {
   if (!io) {
     throw new Error("Socket.io not initialized!");
