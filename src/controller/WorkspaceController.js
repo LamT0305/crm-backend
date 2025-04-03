@@ -44,19 +44,21 @@ export const inviteMember = async (req, res) => {
     if (!recipient) {
       return errorResponse(res, "User not found");
     }
+
+    // Initialize workspace after retrieving user
+    const user = await UserModel.findById(userId);
+    const workspace = await WorkspaceModel.findById(user.currentWorkspace);
+
+    if (!workspace) {
+      return errorResponse(res, "Workspace not found");
+    }
+
     // Check if user is already a member of the workspace
     const existingMember = workspace.members.find(
       (m) => m.user.toString() === recipient._id.toString()
     );
     if (existingMember) {
       return errorResponse(res, "User is already a member of the workspace");
-    }
-
-    const user = await UserModel.findById(userId);
-    const workspace = await WorkspaceModel.findById(user.currentWorkspace);
-
-    if (!workspace) {
-      return errorResponse(res, "Workspace not found");
     }
 
     // Check if user has admin rights
