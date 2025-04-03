@@ -156,7 +156,7 @@ export const getEmails = async (req, res) => {
       return res.status(404).json({ error: "Customer not found" });
     }
 
-    await fetchReplies();
+    // await fetchReplies();
 
     const emails = await EmailModel.find({
       userId: req.user.id,
