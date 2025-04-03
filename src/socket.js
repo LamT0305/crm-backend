@@ -5,10 +5,10 @@ let io;
 const setupSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: "http://localhost:5173", // Specific origin instead of "*"
+      origin: process.env.FRONTEND_URL || "http://localhost:5173",
       methods: ["GET", "POST"],
       credentials: true,
-      allowedHeaders: ["Content-Type", "Authorization"]
+      allowedHeaders: ["Content-Type", "Authorization"],
     },
   });
 
@@ -16,8 +16,9 @@ const setupSocket = (server) => {
     console.log(`🔥 New client connected: ${socket.id}`);
 
     socket.on("join", (userId) => {
-      socket.join(`user_${userId}`);
-      console.log(`👤 User ${userId} joined their notification room`);
+      const room = `user_${userId}`;
+      socket.join(room);
+      console.log(`👤 User ${userId} joined room: ${room}`);
     });
 
     socket.on("disconnect", () => {
@@ -27,6 +28,7 @@ const setupSocket = (server) => {
 
   return io;
 };
+
 export const getIO = () => {
   if (!io) {
     throw new Error("Socket.io not initialized!");

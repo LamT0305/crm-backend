@@ -155,7 +155,7 @@ export const joinWorkspace = async (req, res) => {
       title: "New Member Joined",
       message: `${user.name} has joined the workspace "${workspace.name}".`,
       status: "Unread",
-      link: `${process.env.FRONTEND_URL}/workspace/${workspace._id}/members`,
+      link: `${process.env.FRONTEND_URL}/setting`,
       workspace: workspace._id,
     });
 
@@ -164,18 +164,7 @@ export const joinWorkspace = async (req, res) => {
     const io = getIO();
     io.to(`user_${workspace.owner}`).emit("notiJoin", {
       type: "workspace_join",
-      data: {
-        notification,
-        member: {
-          name: user.name,
-          email: user.email,
-          id: user._id,
-        },
-        workspace: {
-          name: workspace.name,
-          id: workspace._id,
-        },
-      },
+      data: notification.title,
     });
     return successResponse(res, { message: "Joined workspace successfully" });
   } catch (error) {
@@ -312,6 +301,36 @@ export const updateWorkspaceName = async (req, res) => {
 
     await workspace.populate("owner", "name email");
 
+    // Notify all members about the update
+    const notifications = workspace.members.map(async (member) => {
+      const notification = await NotificationModel.create({
+        userId: member.user._id,
+        title: "Workspace Updated",
+        message: `The workspace "${workspace.name}" has been updated.`,
+        status: "Unread",
+        workspace: workspace._id,
+      });
+      return notification.populate("userId", "email name");
+    });
+
+    await Promise.all(notifications);
+    const io = getIO();
+    console.log("Emitting to members:", workspace.members);
+    workspace.members
+      .filter((member) => member.role === "Member")
+      .forEach((member) => {
+        const roomId = `user_${member.user._id.toString()}`;
+        console.log("Emitting to room:", roomId);
+        io.to(roomId).emit("workspaceUpdated", {
+          type: "workspace_update",
+          data: {
+            message: `The workspace "${workspace.name}" has been updated.`,
+            workspaceId: workspace._id,
+            workspace: workspace,
+          },
+        });
+      });
+
     return successResponse(res, {
       message: "Workspace name updated successfully",
       workspace,
@@ -358,7 +377,38 @@ export const deleteWorkspace = async (req, res) => {
         }
       })
     );
+
+    // Notify all members about the update
+    const notifications = workspace.members.map(async (member) => {
+      const notification = await NotificationModel.create({
+        userId: member.user._id,
+        title: "Workspace Updated",
+        message: `The workspace "${workspace.name}" has been delete.`,
+        status: "Unread",
+        workspace: workspace._id,
+      });
+      return notification.populate("userId", "email name");
+    });
+
+    await Promise.all(notifications);
+    const io = getIO();
+    console.log("Emitting to members:", workspace.members);
+    workspace.members
+      .filter((member) => member.role === "Member")
+      .forEach((member) => {
+        const roomId = `user_${member.user._id.toString()}`;
+        console.log("Emitting to room:", roomId);
+        io.to(roomId).emit("workspaceDeleted", {
+          type: "workspace_delete",
+          data: {
+            message: `The workspace "${workspace.name}" has been deleted.`,
+            workspaceId: workspace._id,
+            workspace: workspace,
+          },
+        });
+      });
     await workspace.deleteOne();
+
     return successResponse(res, {
       message: "Workspace deleted successfully",
     });
@@ -402,6 +452,26 @@ export const leaveWorkspace = async (req, res) => {
       user.currentWorkspace = nextWorkspace;
     }
     await user.save();
+
+    const adminMember = workspace.members.find((m) => m.role === "Admin");
+    if (adminMember) {
+      const notification = await NotificationModel.create({
+        userId: adminMember.user._id,
+        title: "Workspace Leaved",
+        message: `${user.name} has been leaved from the workspace "${workspace.name}"`,
+        status: "Unread",
+        link: `${process.env.FRONTEND_URL}/setting`,
+        workspace: workspace._id,
+      });
+      await notification.populate("userId", "email name");
+
+      const io = getIO();
+
+      io.to(`user_${adminMember.user._id.toString()}`).emit("notiLeaveWS", {
+        data: notification,
+      });
+    }
+
     return successResponse(res, {
       message: "Left workspace successfully",
     });
