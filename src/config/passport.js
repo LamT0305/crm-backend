@@ -13,10 +13,12 @@ passport.use(
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL: process.env.GOOGLE_CALLBACK_URL,
       passReqToCallback: true,
+      accessType: "offline", // ✅ Đảm bảo lấy refresh token
+      prompt: "consent",
     },
     async (req, accessToken, refreshToken, profile, done) => {
       // console.log("🔑 Access Token:", accessToken);
-      // console.log("🔄 Refresh Token:", refreshToken);
+      console.log("🔄 Refresh Token:", refreshToken);
       // console.log("👤 User Profile:", profile);
 
       try {
