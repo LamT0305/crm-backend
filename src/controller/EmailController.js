@@ -193,6 +193,7 @@ export const fetchReplies = async () => {
           await Promise.all(
             messagesList.data.messages.map(async (msg) => {
               try {
+                console.log(`Fetching message with ID: ${msg.id}`);
                 const msgData = await gmail.users.messages.get({
                   userId: "me",
                   id: msg.id,
@@ -266,6 +267,7 @@ export const fetchReplies = async () => {
     console.error("❌ Error fetching messages:", error);
   }
 };
+
 
 const fetchAttachments = async (emailData) => {
   if (!emailData.payload.parts) return [];
