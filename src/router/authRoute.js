@@ -15,7 +15,7 @@ router.get(
       "email",
       "https://www.googleapis.com/auth/gmail.send",
       "https://www.googleapis.com/auth/gmail.modify",
-      "https://www.googleapis.com/auth/gmail.readonly"
+      "https://www.googleapis.com/auth/gmail.readonly",
     ],
     accessType: "offline",
     prompt: "consent",
@@ -44,7 +44,7 @@ router.get(
 router.get("/profile", verifyToken, async (req, res) => {
   try {
     const user = await UserModel.findById(req.user.id);
-    res.json({ user: req.user });
+    res.json({ user: user });
   } catch (error) {
     return res.status(500).json({ error: error });
   }
