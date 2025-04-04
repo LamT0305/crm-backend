@@ -43,7 +43,14 @@ router.get(
 
 router.get("/profile", verifyToken, async (req, res) => {
   try {
-    const user = await UserModel.findById(req.user.id);
+    const user = await UserModel.findById(req.user.id).select(
+      "-password",
+      "-__v",
+      "-createdAt",
+      "-updatedAt",
+      "-accessToken",
+      "-refreshToken"
+    );
     res.json({ user: user });
   } catch (error) {
     return res.status(500).json({ error: error });
