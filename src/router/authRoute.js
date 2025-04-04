@@ -43,14 +43,13 @@ router.get(
 
 router.get("/profile", verifyToken, async (req, res) => {
   try {
-    const user = await UserModel.findById(req.user.id).select(
-      "-password",
-      "-__v",
-      "-createdAt",
-      "-updatedAt",
-      "-accessToken",
-      "-refreshToken"
-    );
+    const user = await UserModel.findById(req.user.id)
+      .select("-password", "-accessToken", "-refreshToken")
+      .populate("workspace", "name");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
     res.json({ user: user });
   } catch (error) {
     return res.status(500).json({ error: error });
