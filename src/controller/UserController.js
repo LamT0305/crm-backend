@@ -2,22 +2,6 @@ import UserModel from "../model/UserModel.js";
 import { successResponse, errorResponse } from "../utils/responseHandler.js";
 import fs from "fs";
 
-export const getProfile = async (req, res) => {
-  try {
-    const user = await UserModel.findById(req.user.id)
-      .select("-password -refreshToken -accessToken")
-      .populate("workspace", "name");
-
-    if (!user) {
-      return errorResponse(res, "User not found", 404);
-    }
-
-    successResponse(res, user);
-  } catch (error) {
-    errorResponse(res, error.message);
-  }
-};
-
 export const updateUserProfile = async (req, res) => {
   try {
     const { name, phone, gender, birthday, bio, userName } = req.body;
@@ -63,10 +47,26 @@ export const updateUserProfile = async (req, res) => {
 
 export const viewListUsers = async (req, res) => {
   try {
-    const users = await UserModel.find()
+    const users = await UserModel.find({
+      _id: { $ne: req.user.id }, // Exclude current user
+    })
       .select("-password -refreshToken -accessToken")
       .sort({ createdAt: -1 });
 
+    successResponse(res, users);
+  } catch (error) {
+    errorResponse(res, error.message);
+  }
+};
+
+export const viewListUsersInWorkspace = async (req, res) => {
+  try {
+    const users = await UserModel.find({
+      workspace: req.workspaceId,
+      _id: { $ne: req.user.id }, // Exclude current user
+    })
+      .select("-password -refreshToken -accessToken")
+      .sort({ createdAt: -1 });
     successResponse(res, users);
   } catch (error) {
     errorResponse(res, error.message);

@@ -387,6 +387,12 @@ export const deleteWorkspace = async (req, res) => {
             memberUser.currentWorkspace =
               memberUser.workspaces[0]?.workspace || null;
           }
+
+          // Update hasCompletedOnboarding if user has no workspaces left
+          if (memberUser.workspaces.length === 0) {
+            memberUser.hasCompletedOnboarding = false;
+            memberUser.currentWorkspace = null;
+          }
           await memberUser.save();
         }
       })
