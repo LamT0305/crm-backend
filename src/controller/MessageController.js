@@ -3,6 +3,23 @@ import GroupModel from "../model/GroupModel.js";
 import { successResponse, errorResponse } from "../utils/responseHandler.js";
 import { getIO } from "../socket.js";
 import UserModel from "../model/UserModel.js";
+import NotificationModel from "../model/NotificationModel.js";
+import cloudinary from "../config/cloudinary.js";
+import multer from "multer";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+});
+
+const uploadToCloudinary = async (buffer, filename) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { resource_type: "auto", folder: "messages" },
+      (error, result) => (error ? reject(error) : resolve(result))
+    );
+    stream.end(buffer);
+  });
+};
 
 const populateOptions = {
   path: "sender receiver",
@@ -11,21 +28,73 @@ const populateOptions = {
 
 export const sendMessage = async (req, res) => {
   try {
-    const { receiverId, content } = req.body;
-    const message = await MessageModel.create({
-      sender: req.user.id,
-      receiver: receiverId,
-      content,
-      workspace: req.workspaceId,
+    upload.any()(req, res, async (err) => {
+      if (err) {
+        return res
+          .status(500)
+          .json({ error: "File upload failed", details: err });
+      }
+
+      const { receiverId, content } = req.body;
+      const files = req.files;
+
+      const receiver = await UserModel.findById(receiverId);
+      if (!receiver) {
+        console.log(receiverId);
+        return errorResponse(res, "Receiver not found", 404);
+      }
+
+      const attachments = [];
+
+      if (files && files.length > 0) {
+        try {
+          const uploadPromises = files.map(async (file) => {
+            const result = await uploadToCloudinary(
+              file.buffer,
+              file.originalname
+            );
+            return {
+              filename: file.originalname,
+              path: result.secure_url,
+              mimetype: file.mimetype,
+              public_id: result.public_id,
+            };
+          });
+
+          const uploadedFiles = await Promise.all(uploadPromises);
+          attachments.push(...uploadedFiles);
+        } catch (error) {
+          console.error("Error uploading files to Cloudinary:", error);
+          return errorResponse(res, "Failed to upload files");
+        }
+      }
+
+      console.log("Attachments:", attachments);
+      const message = await MessageModel.create({
+        sender: req.user.id,
+        receiver: receiver._id,
+        content,
+        workspace: req.workspaceId,
+        attachments: attachments,
+      });
+
+      const populatedMessage = await message.populate(populateOptions);
+
+      const notification = await NotificationModel.create({
+        workspace: req.workspaceId,
+        userId: receiver._id,
+        title: "New Message",
+        message: `You have a new message from ${message.sender.name}`,
+        link: `${process.env.FRONTEND_URL}/messages`,
+      });
+      const io = getIO();
+      io.to(`user_${receiver._id}`).emit("newMessage", {
+        message: populatedMessage,
+        notification: notification,
+      });
+
+      successResponse(res, populatedMessage);
     });
-
-    const populatedMessage = await message.populate(populateOptions);
-
-    const io = getIO();
-    io.to(`user_${receiverId}`).emit("newMessage", populatedMessage);
-    io.to(`user_${req.user.id}`).emit("newMessage", populatedMessage);
-
-    successResponse(res, populatedMessage);
   } catch (error) {
     errorResponse(res, error.message);
   }
@@ -47,6 +116,8 @@ export const getMessages = async (req, res) => {
     if (!messages) {
       return successResponse(res, []);
     }
+
+    // Mark messages as read
     await MessageModel.updateMany(
       {
         receiver: req.user.id,
@@ -56,13 +127,21 @@ export const getMessages = async (req, res) => {
       { isRead: true }
     );
 
+    // Get updated conversation with unread count
+    const unreadCount = await MessageModel.countDocuments({
+      workspace: req.workspaceId,
+      sender: userId,
+      receiver: req.user.id,
+      isRead: false,
+    });
+
     const io = getIO();
     io.to(`user_${userId}`).emit("messagesRead", {
       reader: req.user.id,
       conversation: userId,
     });
 
-    successResponse(res, messages);
+    successResponse(res, { messages, unreadCount });
   } catch (error) {
     errorResponse(res, error.message);
   }
@@ -154,14 +233,39 @@ export const createGroup = async (req, res) => {
   try {
     const { name, members } = req.body;
 
+    // check members exists
+    const membersExist = await UserModel.find({
+      _id: { $in: members },
+      "workspaces.workspace": req.workspaceId,
+    });
+    if (membersExist.length !== members.length) {
+      console.log(membersExist);
+      return errorResponse(res, "Members not found", 404);
+    }
+
     const group = await GroupModel.create({
       name,
-      members: [...members],
+      members: [...members, req.user.id],
       workspace: req.workspaceId,
       creator: req.user.id,
     });
 
     const populatedGroup = await group.populate("members", "name email");
+
+    //send notification to all members
+    membersExist.forEach(async (member) => {
+      if (member._id.toString() !== req.user.id.toString()) {
+        const noti = await NotificationModel.create({
+          workspace: req.workspaceId,
+          userId: member._id,
+          title: "New Group",
+          message: `You have been added to the group ${group.name}`,
+          link: `${process.env.FRONTEND_URL}/messages`,
+        });
+
+        io.to(`user_${member._id}`).emit("newGroupNoti", noti);
+      }
+    });
 
     const io = getIO();
     members.forEach((memberId) => {
@@ -175,44 +279,80 @@ export const createGroup = async (req, res) => {
 };
 export const sendGroupMessage = async (req, res) => {
   try {
-    const { groupId, content } = req.body;
+    upload.any()(req, res, async (err) => {
+      if (err) {
+        return res
+          .status(500)
+          .json({ error: "File upload failed", details: err });
+      }
+      const { groupId, content } = req.body;
+      const files = req.files;
 
-    const group = await GroupModel.findOne({
-      _id: groupId,
-      members: req.user.id,
-      workspace: req.workspaceId,
-    });
-
-    if (!group) {
-      return errorResponse(res, "Group not found or access denied", 404);
-    }
-
-    const message = await MessageModel.create({
-      sender: req.user.id,
-      group: groupId,
-      content,
-      workspace: req.workspaceId,
-      isGroupMessage: true,
-    });
-
-    const populatedMessage = await message.populate([
-      { path: "sender", select: "name email" },
-      { path: "group", select: "name members" },
-    ]);
-
-    const io = getIO();
-    group.members.forEach((memberId) => {
-      io.to(`user_${memberId}`).emit("newGroupMessage", {
-        groupId,
-        message: populatedMessage,
+      const group = await GroupModel.findOne({
+        _id: groupId,
+        members: req.user.id,
+        workspace: req.workspaceId,
       });
-    });
 
-    successResponse(res, populatedMessage);
+      if (!group) {
+        return errorResponse(res, "Group not found or access denied", 404);
+      }
+
+      const attachments = [];
+      if (files && files.length > 0) {
+        try {
+          const uploadPromises = files.map(async (file) => {
+            const result = await uploadToCloudinary(
+              file.buffer,
+              file.originalname
+            );
+            return {
+              filename: file.originalname,
+              path: result.secure_url,
+              mimetype: file.mimetype,
+              public_id: result.public_id,
+            };
+          });
+
+          const uploadedFiles = await Promise.all(uploadPromises);
+          attachments.push(...uploadedFiles);
+        } catch (error) {
+          console.error("Error uploading files to Cloudinary:", error);
+          return errorResponse(res, "Failed to upload files");
+        }
+      }
+
+      const message = await MessageModel.create({
+        sender: req.user.id,
+        group: groupId,
+        content: content,
+        workspace: req.workspaceId,
+        isGroupMessage: true,
+        attachments: attachments,
+      });
+
+      const populatedMessage = await message.populate([
+        { path: "sender", select: "name email" },
+        { path: "group", select: "name members" },
+      ]);
+
+      const io = getIO();
+      group.members.forEach((memberId) => {
+        if (memberId !== req.user.id) {
+          io.to(`user_${memberId}`).emit("newGroupMessage", {
+            groupId,
+            message: populatedMessage,
+          });
+        }
+      });
+
+      successResponse(res, populatedMessage);
+    });
   } catch (error) {
     errorResponse(res, error.message);
   }
 };
+
 export const getGroupMessages = async (req, res) => {
   try {
     const { groupId } = req.params;
@@ -235,7 +375,7 @@ export const getGroupMessages = async (req, res) => {
       .populate("sender", "name email")
       .sort({ createdAt: 1 });
 
-    // Mark all messages as read for the current user
+    // Mark all unread messages as read for the current user only
     await MessageModel.updateMany(
       {
         group: groupId,
@@ -250,9 +390,17 @@ export const getGroupMessages = async (req, res) => {
       }
     );
 
+    // Get updated unread count for the current user
+    const unreadCount = await MessageModel.countDocuments({
+      group: groupId,
+      workspace: req.workspaceId,
+      isGroupMessage: true,
+      "readBy.userId": { $ne: req.user.id },
+    });
+
     const io = getIO();
     group.members.forEach((memberId) => {
-      if (memberId.toString() !== req.user.id) {
+      if (memberId.toString() !== req.user.id.toString()) {
         io.to(`user_${memberId}`).emit("groupMessagesRead", {
           groupId,
           readerId: req.user.id,
@@ -260,11 +408,12 @@ export const getGroupMessages = async (req, res) => {
       }
     });
 
-    successResponse(res, messages);
+    successResponse(res, { messages, unreadCount });
   } catch (error) {
     errorResponse(res, error.message);
   }
 };
+
 export const getGroups = async (req, res) => {
   try {
     if (!req.user?.id || !req.workspaceId) {

@@ -268,7 +268,6 @@ export const fetchReplies = async () => {
   }
 };
 
-
 const fetchAttachments = async (emailData) => {
   if (!emailData.payload.parts) return [];
 

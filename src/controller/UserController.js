@@ -62,7 +62,7 @@ export const viewListUsers = async (req, res) => {
 export const viewListUsersInWorkspace = async (req, res) => {
   try {
     const users = await UserModel.find({
-      workspace: req.workspaceId,
+      "workspaces.workspace": req.workspaceId,
       _id: { $ne: req.user.id }, // Exclude current user
     })
       .select("-password -refreshToken -accessToken")

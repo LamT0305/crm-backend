@@ -44,6 +44,14 @@ const MessageSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    attachments: [
+      {
+        filename: String,
+        path: String,
+        mimetype: String,
+        public_id: String,
+      },
+    ],
   },
   {
     timestamps: true,

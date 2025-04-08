@@ -26,8 +26,8 @@ router.use(checkWorkspaceAccess);
 // Group messaging routes (must come before dynamic routes)
 router.get("/list/groups", getGroups); // Changed from /groups to /list/groups
 router.post("/group/new", createGroup);
+router.post("/group/message", sendGroupMessage);
 router.post("/group/:groupId/member", addGroupMember);
-router.post("/group/:groupId/message", sendGroupMessage);
 router.get("/group/:groupId/messages", getGroupMessages);
 router.get("/group/details/:groupId", viewGroupDetails);
 router.delete("/group/:groupId", deleteGroup);
