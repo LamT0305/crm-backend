@@ -69,7 +69,6 @@ export const sendMessage = async (req, res) => {
         }
       }
 
-      console.log("Attachments:", attachments);
       const message = await MessageModel.create({
         sender: req.user.id,
         receiver: receiver._id,
@@ -87,6 +86,7 @@ export const sendMessage = async (req, res) => {
         message: `You have a new message from ${message.sender.name}`,
         link: `${process.env.FRONTEND_URL}/messages`,
       });
+      
       const io = getIO();
       io.to(`user_${receiver._id}`).emit("newMessage", {
         message: populatedMessage,
@@ -338,7 +338,7 @@ export const sendGroupMessage = async (req, res) => {
 
       const io = getIO();
       group.members.forEach((memberId) => {
-        if (memberId !== req.user.id) {
+        if (memberId.toString() !== req.user.id.toString()) {
           io.to(`user_${memberId}`).emit("newGroupMessage", {
             groupId,
             message: populatedMessage,
@@ -475,6 +475,23 @@ export const addGroupMember = async (req, res) => {
   try {
     const { groupId, memberId } = req.body;
 
+    // Check if the group exists and the user is a member
+    const memberExists = await UserModel.findOne({
+      _id: memberId,
+      "workspaces.workspace": req.workspaceId,
+    });
+    if (!memberExists) {
+      return errorResponse(res, "Member not found", 404);
+    }
+    const groupExists = await GroupModel.findOne({
+      _id: groupId,
+      members: req.user.id,
+      workspace: req.workspaceId,
+    });
+    if (!groupExists) {
+      return errorResponse(res, "Group not found or not authorized", 404);
+    }
+
     const group = await GroupModel.findOneAndUpdate(
       {
         _id: groupId,
@@ -489,10 +506,22 @@ export const addGroupMember = async (req, res) => {
       return errorResponse(res, "Group not found or not authorized", 404);
     }
 
+    const noti = await NotificationModel.create({
+      workspace: req.workspaceId,
+      userId: memberId,
+      title: "New Group",
+      message: `You have been added to the group ${group.name}`,
+      link: `${process.env.FRONTEND_URL}/messages`,
+    });
+
     const io = getIO();
-    io.to(`user_${memberId}`).emit("addedToGroup", group);
+    io.to(`user_${memberId}`).emit("addedToGroup", { group, noti });
+
+    // group update
     group.members.forEach((member) => {
-      io.to(`user_${member._id}`).emit("groupUpdated", group);
+      if (member._id !== memberId) {
+        io.to(`user_${member._id}`).emit("groupUpdated", group);
+      }
     });
 
     successResponse(res, group);
