@@ -1,12 +1,22 @@
+import mongoose from "mongoose";
 import CustomerModel from "../model/CustomerModel.js";
 import DealModel from "../model/DealModel.js";
 import QuotationModel from "../model/QuotationModel.js";
 import CustomerCareModel from "../model/CustomerCareModel.js";
 
+// Helper function for workspace matching
+const getWorkspaceMatch = (workspaceId) => ({
+  $match: {
+    workspace: new mongoose.Types.ObjectId(workspaceId),
+  },
+});
+
 // customer analysis
 export const getCustomerStatusDistribution = async (req, res) => {
   try {
+    console.log("Workspace ID:", req.workspaceId);
     const distribution = await CustomerModel.aggregate([
+      getWorkspaceMatch(req.workspaceId),
       {
         $group: {
           _id: {
@@ -51,6 +61,7 @@ export const getCustomerStatusDistribution = async (req, res) => {
 export const getCustomerIndustryDistribution = async (req, res) => {
   try {
     const distribution = await CustomerModel.aggregate([
+      getWorkspaceMatch(req.workspaceId),
       {
         $group: {
           _id: {
@@ -95,6 +106,7 @@ export const getCustomerIndustryDistribution = async (req, res) => {
 export const getCustomerSourceDistribution = async (req, res) => {
   try {
     const distribution = await CustomerModel.aggregate([
+      getWorkspaceMatch(req.workspaceId),
       {
         $lookup: {
           from: "sources",
@@ -148,6 +160,7 @@ export const getCustomerSourceDistribution = async (req, res) => {
 export const getMonthlyIncomeDistribution = async (req, res) => {
   try {
     const distribution = await CustomerModel.aggregate([
+      getWorkspaceMatch(req.workspaceId),
       {
         $addFields: {
           numericIncome: {
@@ -234,6 +247,7 @@ export const getMonthlyIncomeDistribution = async (req, res) => {
 export const getDealStatusDistribution = async (req, res) => {
   try {
     const distribution = await DealModel.aggregate([
+      getWorkspaceMatch(req.workspaceId),
       {
         $group: {
           _id: {
@@ -280,6 +294,7 @@ export const getDealStatusDistribution = async (req, res) => {
 export const getDealValueAnalysis = async (req, res) => {
   try {
     const analysis = await QuotationModel.aggregate([
+      getWorkspaceMatch(req.workspaceId),
       {
         $group: {
           _id: {
@@ -331,7 +346,10 @@ export const getDealValueAnalysis = async (req, res) => {
 
 export const getProductPerformance = async (req, res) => {
   try {
-    const deals = await DealModel.find({ status: "Won" }).populate({
+    const deals = await DealModel.find({
+      status: "Won",
+      workspace: req.workspaceId,
+    }).populate({
       path: "products.productId",
       select: "name category unit",
     });
@@ -386,6 +404,7 @@ export const getProductPerformance = async (req, res) => {
 export const getInteractionTypeDistribution = async (req, res) => {
   try {
     const distribution = await CustomerCareModel.aggregate([
+      getWorkspaceMatch(req.workspaceId),
       {
         $group: {
           _id: {
@@ -430,6 +449,7 @@ export const getInteractionTypeDistribution = async (req, res) => {
 export const getInteractionTimeline = async (req, res) => {
   try {
     const timeline = await CustomerCareModel.aggregate([
+      getWorkspaceMatch(req.workspaceId),
       {
         $group: {
           _id: {
@@ -504,11 +524,12 @@ export const getInteractionTimeline = async (req, res) => {
   }
 };
 
-//sale performance
+// sale performance
 
 export const getQuotationAnalysis = async (req, res) => {
   try {
     const analysis = await QuotationModel.aggregate([
+      getWorkspaceMatch(req.workspaceId),
       {
         $group: {
           _id: {
@@ -609,6 +630,11 @@ export const getQuotationAnalysis = async (req, res) => {
 export const getDiscountAnalysis = async (req, res) => {
   try {
     const analysis = await QuotationModel.aggregate([
+      {
+        $match: {
+          workspace: req.workspaceId,
+        },
+      },
       {
         $project: {
           date: {

@@ -15,6 +15,8 @@ import {
   deleteMessage,
   deleteGroup,
   viewGroupDetails,
+  getAttachmentsInGroupMessage,
+  getAttachmentsInMessage,
 } from "../controller/MessageController.js";
 
 const router = express.Router();
@@ -30,6 +32,7 @@ router.post("/group/message", sendGroupMessage);
 router.post("/group/:groupId/member", addGroupMember);
 router.get("/group/:groupId/messages", getGroupMessages);
 router.get("/group/details/:groupId", viewGroupDetails);
+router.get("/group/:groupId/attachments", getAttachmentsInGroupMessage);
 router.delete("/group/:groupId", deleteGroup);
 router.delete("/group/message/:messageId", deleteGroupMessage);
 
@@ -41,5 +44,6 @@ router.delete("/message/:messageId", deleteMessage);
 
 // This must come last as it has a dynamic parameter
 router.get("/user/:userId", getMessages);
+router.get("/user/:userId/attachments", getAttachmentsInMessage);
 
 export default router;

@@ -514,6 +514,14 @@ export const deleteMessage = async (req, res) => {
       return errorResponse(res, "Message not found or not authorized", 404);
     }
 
+    // Delete attachments from Cloudinary
+    if (message.attachments && message.attachments.length > 0) {
+      const deletePromises = message.attachments.map((attachment) =>
+        cloudinary.uploader.destroy(attachment.public_id)
+      );
+      await Promise.all(deletePromises);
+    }
+
     await MessageModel.deleteOne({ _id: messageId });
 
     const io = getIO();
@@ -559,6 +567,13 @@ export const deleteGroupMessage = async (req, res) => {
       return errorResponse(res, "Group not found or access denied", 404);
     }
 
+    // Delete attachments from Cloudinary
+    if (message.attachments && message.attachments.length > 0) {
+      const deletePromises = message.attachments.map((attachment) =>
+        cloudinary.uploader.destroy(attachment.public_id)
+      );
+      await Promise.all(deletePromises);
+    }
     await MessageModel.deleteOne({ _id: messageId });
 
     const io = getIO();
@@ -618,6 +633,63 @@ export const viewGroupDetails = async (req, res) => {
     //populate members
     const populatedGroup = await group.populate("members", "name email");
     successResponse(res, populatedGroup);
+  } catch (error) {
+    errorResponse(res, error.message);
+  }
+};
+
+export const getAttachmentsInMessage = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    console.log("user: ", userId);
+    const isExist = await UserModel.findOne({
+      _id: userId,
+      "workspaces.workspace": req.workspaceId,
+    });
+
+    if (!isExist) {
+      return errorResponse(res, "User not found", 404);
+    }
+
+    const messages = await MessageModel.find({
+      receiver: userId,
+      workspace: req.workspaceId,
+    });
+    const attachments = messages.reduce((acc, message) => {
+      if (message.attachments && message.attachments.length > 0) {
+        acc.push(...message.attachments);
+      }
+      return acc;
+    }, []);
+    successResponse(res, attachments);
+  } catch (error) {
+    errorResponse(res, error.message);
+  }
+};
+
+export const getAttachmentsInGroupMessage = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const isExist = await GroupModel.findOne({
+      _id: groupId,
+      workspace: req.workspaceId,
+    });
+    if (!isExist) {
+      return errorResponse(res, "Group not found", 404);
+    }
+    const messages = await MessageModel.find({
+      group: groupId,
+      workspace: req.workspaceId,
+      isGroupMessage: true,
+    }).populate("sender", "name email");
+    const attachments = messages.reduce((acc, message) => {
+      if (message.attachments && message.attachments.length > 0) {
+        acc.push(...message.attachments);
+      }
+      return acc;
+    }, []);
+    successResponse(res, attachments);
   } catch (error) {
     errorResponse(res, error.message);
   }
