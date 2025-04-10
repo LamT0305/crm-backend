@@ -17,6 +17,7 @@ import {
   viewGroupDetails,
   getAttachmentsInGroupMessage,
   getAttachmentsInMessage,
+  removeGroupMember,
 } from "../controller/MessageController.js";
 
 const router = express.Router();
@@ -35,6 +36,7 @@ router.get("/group/details/:groupId", viewGroupDetails);
 router.get("/group/:groupId/attachments", getAttachmentsInGroupMessage);
 router.delete("/group/:groupId", deleteGroup);
 router.delete("/group/message/:messageId", deleteGroupMessage);
+router.delete("/group/:groupId/member/:userId", removeGroupMember);
 
 // Direct messaging routes
 router.post("/send", sendMessage);

@@ -52,6 +52,11 @@ const MessageSchema = new mongoose.Schema(
         public_id: String,
       },
     ],
+    messageType: {
+      type: String,
+      enum: ["message", "notification"],
+      default: "message",
+    },
   },
   {
     timestamps: true,

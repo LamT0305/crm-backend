@@ -86,7 +86,7 @@ export const sendMessage = async (req, res) => {
         message: `You have a new message from ${message.sender.name}`,
         link: `${process.env.FRONTEND_URL}/messages`,
       });
-      
+
       const io = getIO();
       io.to(`user_${receiver._id}`).emit("newMessage", {
         message: populatedMessage,
@@ -277,6 +277,7 @@ export const createGroup = async (req, res) => {
     errorResponse(res, error.message);
   }
 };
+
 export const sendGroupMessage = async (req, res) => {
   try {
     upload.any()(req, res, async (err) => {
@@ -471,6 +472,7 @@ export const getGroups = async (req, res) => {
     errorResponse(res, error.message); // Send the actual error message for debugging
   }
 };
+
 export const addGroupMember = async (req, res) => {
   try {
     const { groupId, memberId } = req.body;
@@ -500,11 +502,21 @@ export const addGroupMember = async (req, res) => {
       },
       { $addToSet: { members: memberId } },
       { new: true }
-    ).populate("members", "name email");
+    )
+      .populate("members", "name email")
+      .populate("creator", "name email");
 
     if (!group) {
       return errorResponse(res, "Group not found or not authorized", 404);
     }
+
+    const message = await MessageModel.create({
+      sender: req.user.id,
+      group: groupId,
+      content: `${group.creator.name} added ${memberExists.name} to the group`,
+      workspace: req.workspaceId,
+      isGroupMessage: true,
+    });
 
     const noti = await NotificationModel.create({
       workspace: req.workspaceId,
@@ -519,9 +531,10 @@ export const addGroupMember = async (req, res) => {
 
     // group update
     group.members.forEach((member) => {
-      if (member._id !== memberId) {
-        io.to(`user_${member._id}`).emit("groupUpdated", group);
-      }
+      io.to(`user_${member._id}`).emit("newGroupMessage", {
+        groupId: groupId,
+        message: message,
+      });
     });
 
     successResponse(res, group);
@@ -642,8 +655,167 @@ export const deleteGroup = async (req, res) => {
         groupId: group._id,
       });
     });
+
+    // delete attachments from cloudinary in messages
+
+    const messages = await MessageModel.find({
+      group: group._id,
+      workspace: req.workspaceId,
+    });
+    if (messages && messages.length > 0) {
+      messages.forEach(async (message) => {
+        if (message.attachments && message.attachments.length > 0) {
+          const deletePromises = message.attachments.map((attachment) =>
+            cloudinary.uploader.destroy(attachment.public_id)
+          );
+          await Promise.all(deletePromises);
+        }
+      });
+    }
+
+    await MessageModel.deleteMany({
+      group: group._id,
+      workspace: req.workspaceId,
+    });
+
     await GroupModel.deleteOne({ _id: group._id });
     successResponse(res, { message: "Group deleted successfully" });
+  } catch (error) {
+    errorResponse(res, error.message);
+  }
+};
+
+export const removeGroupMember = async (req, res) => {
+  try {
+    const { groupId, userId } = req.params;
+
+    const group = await GroupModel.findOne({
+      _id: groupId,
+      creator: req.user.id,
+      workspace: req.workspaceId,
+    });
+    if (!group) {
+      return errorResponse(res, "Group not found or not authorized", 404);
+    }
+    const memberExists = await UserModel.findOne({
+      _id: userId,
+      "workspaces.workspace": req.workspaceId,
+    });
+
+    if (!memberExists) {
+      return errorResponse(res, "Member not found", 404);
+    }
+
+    const isGroupMember = group.members.includes(userId);
+    if (!isGroupMember) {
+      return errorResponse(res, "Member is not in the group", 400);
+    }
+    if (group.creator.toString() === userId) {
+      return errorResponse(res, "Cannot remove the creator of the group", 400);
+    }
+
+    const message = await MessageModel.create({
+      sender: req.user.id,
+      group: groupId,
+      content: `${req.user.name} removed ${memberExists.name} from the group`,
+      workspace: req.workspaceId,
+      isGroupMessage: true,
+      messageType: "notification",
+      attachments: [],
+    });
+
+    const io = getIO();
+
+    group.members.forEach((member) => {
+      if (member.toString() !== userId.toString()) {
+        io.to(`user_${member._id}`).emit("newGroupMessage", message);
+      }
+    });
+
+    const updatedGroup = await GroupModel.findOneAndUpdate(
+      {
+        _id: groupId,
+        creator: req.user.id,
+        workspace: req.workspaceId,
+      },
+      { $pull: { members: userId } },
+      { new: true }
+    )
+      .populate("members", "name email")
+      .populate("creator", "name email");
+    if (!updatedGroup) {
+      return errorResponse(res, "Group not found or not authorized", 404);
+    }
+
+    updatedGroup.members.forEach((member) => {
+      if (member.toString() !== userId.toString()) {
+        io.to(`user_${member}`).emit("groupUpdated", updatedGroup);
+      }
+    });
+
+    const noti = await NotificationModel.create({
+      workspace: req.workspaceId,
+      userId: userId,
+      title: "Group Removed",
+      message: `You have been removed from the group ${group.name}`,
+    });
+
+    io.to(`user_${userId}`).emit("removedFromGroup", {
+      noti: noti,
+      group: updatedGroup,
+    });
+
+    successResponse(res, updatedGroup);
+  } catch (error) {
+    errorResponse(res, error.message);
+  }
+};
+
+export const leaveGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const group = await GroupModel.findOne({
+      _id: groupId,
+      workspace: req.workspaceId,
+    });
+    if (!group) {
+      return errorResponse(res, "Group not found", 404);
+    }
+    const isGroupMember = group.members.includes(req.user.id);
+    if (!isGroupMember) {
+      return errorResponse(res, "You are not a member of this group", 400);
+    }
+
+    const message = await MessageModel.create({
+      sender: req.user.id,
+      group: groupId,
+      content: `${req.user.name} has left the group`,
+      workspace: req.workspaceId,
+      isGroupMessage: true,
+      messageType: "notification",
+      attachments: [],
+    });
+
+    const updatedGroup = await GroupModel.findOneAndUpdate(
+      {
+        _id: groupId,
+        workspace: req.workspaceId,
+      },
+      { $pull: { members: req.user.id } },
+      { new: true }
+    ).populate("members", "name email");
+    if (!updatedGroup) {
+      return errorResponse(res, "Group not found", 404);
+    }
+
+    const io = getIO();
+    group.members.forEach((memberId) => {
+      io.to(`user_${memberId}`).emit("newGroupMessage", {
+        groupId: group._id,
+        message: message,
+      });
+    });
+    successResponse(res, updatedGroup);
   } catch (error) {
     errorResponse(res, error.message);
   }
@@ -655,13 +827,16 @@ export const viewGroupDetails = async (req, res) => {
     const group = await GroupModel.findOne({
       _id: groupId,
       workspace: req.workspaceId,
-    });
+    }).populate([
+      { path: "members", select: "name email" },
+      { path: "creator", select: "name email" },
+    ]);
+
     if (!group) {
       return errorResponse(res, "Group not found", 404);
     }
-    //populate members
-    const populatedGroup = await group.populate("members", "name email");
-    successResponse(res, populatedGroup);
+
+    successResponse(res, group);
   } catch (error) {
     errorResponse(res, error.message);
   }
