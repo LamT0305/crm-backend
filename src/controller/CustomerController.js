@@ -199,3 +199,4 @@ export const deleteCustomer = async (req, res) => {
     errorResponse(res, error.message);
   }
 };
+

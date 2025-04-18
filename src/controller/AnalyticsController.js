@@ -7,7 +7,7 @@ import CustomerCareModel from "../model/CustomerCareModel.js";
 // Helper function for workspace matching
 const getWorkspaceMatch = (workspaceId) => ({
   $match: {
-    workspace: new mongoose.Types.ObjectId(workspaceId),
+    workspace: workspaceId,
   },
 });
 

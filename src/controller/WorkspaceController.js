@@ -11,6 +11,20 @@ export const createWorkspace = async (req, res) => {
     const { name } = req.body;
     const userId = req.user.id;
 
+    if (!name) {
+      return errorResponse(res, "Workspace name is required");
+    }
+
+    const existingWorkspace = await WorkspaceModel.findOne({
+      name: name,
+      owner: userId,
+    })
+      .populate("members.user", "name email")
+      .populate("owner", "name email");
+    if (existingWorkspace) {
+      return errorResponse(res, "Workspace already exists");
+    }
+
     const workspace = new WorkspaceModel({
       name,
       owner: userId,
@@ -181,6 +195,52 @@ export const joinWorkspace = async (req, res) => {
       data: notification.title,
     });
     return successResponse(res, { message: "Joined workspace successfully" });
+  } catch (error) {
+    return errorResponse(res, error.message);
+  }
+};
+
+export const setMemberRole = async (req, res) => {
+  try {
+    const { workspaceId, userId, role } = req.body;
+    const currentUserId = req.user.id;
+    const workspace = await WorkspaceModel.findById(workspaceId);
+    if (!workspace) {
+      return errorResponse(res, "Workspace not found", 404);
+    }
+    const memberRecord = workspace.members.find(
+      (m) => m.user.toString() === currentUserId
+    );
+    if (!memberRecord || memberRecord.role !== "Admin") {
+      return errorResponse(res, "Only admins can set member roles", 403);
+    }
+    const targetMember = workspace.members.find(
+      (m) => m.user.toString() === userId
+    );
+    if (!targetMember) {
+      return errorResponse(res, "User is not a member of this workspace", 404);
+    }
+    targetMember.role = role;
+    await workspace.save();
+    // notification
+    const notification = await NotificationModel.create({
+      userId: targetMember.user,
+      title: "Role Updated",
+      message: `Your role in the workspace "${workspace.name}" has been updated to ${role}.`,
+      status: "Unread",
+      link: `${process.env.FRONTEND_URL}/setting`,
+      workspace: workspace._id,
+    });
+    await notification.populate("userId", "email name");
+    const io = getIO();
+    io.to(`user_${targetMember.user}`).emit("notiUpdate", {
+      type: "workspace_update",
+      data: notification.title,
+    });
+    return successResponse(res, {
+      message: "Member role updated successfully",
+      workspace,
+    });
   } catch (error) {
     return errorResponse(res, error.message);
   }

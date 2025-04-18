@@ -6,6 +6,10 @@ const TaskSchema = new mongoose.Schema({
     ref: "User",
     required: true,
   },
+  assignee: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+  },
   customerId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Customer",
@@ -29,8 +33,8 @@ const TaskSchema = new mongoose.Schema({
   },
   createdAt: {
     type: Date,
-    default: Date.now
-  }
+    default: Date.now,
+  },
 });
 const TaskModel = mongoose.model("Task", TaskSchema);
 export default TaskModel;

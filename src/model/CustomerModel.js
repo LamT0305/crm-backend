@@ -30,6 +30,8 @@ const CustomerSchema = new mongoose.Schema({
     ref: "Workspace",
     required: true,
   },
+  tags: [{ type: String }],
+  totalRevenue: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });

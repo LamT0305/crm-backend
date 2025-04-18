@@ -11,7 +11,11 @@ const WorkspaceSchema = new mongoose.Schema(
     members: [
       {
         user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-        role: { type: String, enum: ["Admin", "Member"], default: "Member" },
+        role: {
+          type: String,
+          enum: ["Admin", "Member", "Sales", "Support"],
+          default: "Member",
+        },
         status: {
           type: String,
           enum: ["Pending", "Active"],

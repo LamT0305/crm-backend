@@ -19,3 +19,4 @@ export const getEmailBody = (payload) => {
 
   return body || "No message content available";
 };
+
