@@ -25,6 +25,7 @@ const UserSchema = new mongoose.Schema(
       ref: "Workspace",
     },
     hasCompletedOnboarding: { type: Boolean, default: false },
+    lastHistoryId: { type: String },
   },
   { timestamps: true }
 );

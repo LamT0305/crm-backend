@@ -175,96 +175,76 @@ export const getEmails = async (req, res) => {
   }
 };
 
-export const fetchReplies = async () => {
+export const fetchReplies = async (user, historyIdFromWebhook) => {
   try {
-    const users = await UserModel.find().lean();
-    await Promise.all(
-      users.map(async (user) => {
-        try {
-          await refreshAccessToken(user._id);
-          const messagesList = await gmail.users.messages.list({
-            userId: "me",
-            labelIds: ["INBOX"],
-            maxResults: 20,
-          });
+    const auth = await refreshAccessToken(user._id);
+    const gmail = google.gmail({ version: "v1", auth });
 
-          if (!messagesList.data.messages) return;
+    const history = await gmail.users.history.list({
+      userId: "me",
+      startHistoryId: user.lastHistoryId || historyIdFromWebhook,
+      historyTypes: ["messageAdded"],
+    });
 
-          await Promise.all(
-            messagesList.data.messages.map(async (msg) => {
-              try {
-                console.log(`Fetching message with ID: ${msg.id}`);
-                const msgData = await gmail.users.messages.get({
-                  userId: "me",
-                  id: msg.id,
-                });
+    const addedMessages = history.data.history
+      ?.flatMap((h) => h.messages || [])
+      .filter((m) => m.id);
 
-                const messageId = msgData.data.id;
-                const headers = msgData.data.payload.headers;
-                const from =
-                  headers.find((h) => h.name === "From")?.value ||
-                  "Unknown Sender";
-                const senderEmail = extractEmailAddress(from);
+    if (!addedMessages.length) return;
 
-                const customer = await CustomerModel.findOne({
-                  email: senderEmail,
-                }).lean();
+    for (const msg of addedMessages) {
+      try {
+        const msgData = await gmail.users.messages.get({
+          userId: "me",
+          id: msg.id,
+        });
 
-                if (!customer) {
-                  console.log(`⚠️ Skipping non-customer email: ${senderEmail}`);
-                  return;
-                }
+        const headers = msgData.data.payload.headers;
+        const fromHeader = headers.find((h) => h.name === "From");
+        const senderEmail = extractEmailAddress(fromHeader?.value || "");
 
-                const existingEmail = await EmailModel.findOne({
-                  messageId,
-                  workspace: customer.workspace,
-                }).lean();
+        const customer = await CustomerModel.findOne({
+          email: senderEmail,
+        }).lean();
+        if (!customer) continue;
 
-                if (existingEmail) {
-                  console.log(
-                    `⚠️ Skipping already processed email: ${messageId}`
-                  );
-                  return;
-                }
+        const exists = await EmailModel.findOne({
+          messageId: msg.id,
+          workspace: customer.workspace,
+        }).lean();
+        if (exists) continue;
 
-                const subject =
-                  headers.find((h) => h.name === "Subject")?.value ||
-                  "No Subject";
-                const threadId = msgData.data.threadId;
-                const sentAt = new Date(parseInt(msgData.data.internalDate));
+        const subject =
+          headers.find((h) => h.name === "Subject")?.value || "No Subject";
+        const body = getEmailBody(msgData.data.payload);
+        const attachments = await fetchAttachments(msgData.data);
 
-                const body = getEmailBody(msgData.data.payload);
-                const attachments = await fetchAttachments(msgData.data);
+        await EmailModel.create({
+          userId: user._id,
+          to: senderEmail,
+          subject,
+          message: body,
+          status: "received",
+          threadId: msgData.data.threadId,
+          messageId: msg.id,
+          sentAt: new Date(Number(msgData.data.internalDate)),
+          attachments,
+          isDeleted: false,
+          workspace: customer.workspace,
+        });
 
-                const newEmail = await EmailModel.create({
-                  userId: user._id,
-                  to: senderEmail,
-                  subject,
-                  message: body,
-                  status: "received",
-                  threadId,
-                  messageId,
-                  sentAt,
-                  attachments,
-                  isDeleted: false,
-                  workspace: customer.workspace,
-                });
+        await handleNewEmail(newEmail, customer);
+      } catch (err) {
+        console.error("❌ Error processing message:", err);
+      }
+    }
 
-                await handleNewEmail(newEmail, customer);
-                console.log(`📩 Stored email from customer: ${senderEmail}`);
-              } catch (error) {
-                console.error(`Error processing message ${msg.id}:`, error);
-              }
-            })
-          );
-        } catch (error) {
-          console.error(`Error processing user ${user.email}:`, error);
-        }
-      })
-    );
-    console.log("✅ All messages processed.");
-  } catch (error) {
-    console.error("❌ Error fetching messages:", error);
+    // ✅ Save latest historyId
+    await UserModel.findByIdAndUpdate(user._id, {
+      lastHistoryId: historyIdFromWebhook,
+    });
+  } catch (err) {
+    console.error("❌ Error in fetchReplies:", err);
   }
 };
 

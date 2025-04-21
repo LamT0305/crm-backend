@@ -9,6 +9,7 @@ import { fetchReplies } from "./controller/EmailController.js";
 import { appRouter } from "./config/router.js";
 import { createServer } from "http";
 import setupSocket from "./socket.js";
+import UserModel from "./model/UserModel.js";
 
 // Load environment variables
 dotenv.config();
@@ -48,50 +49,33 @@ app.use(passport.initialize());
 // ✅ Register Routes (Make sure middleware is initialized first)
 appRouter(app);
 
-// 🔔 Gmail Webhook Listener
+// 📬 Gmail Webhook Listener
 app.post("/gmail/webhook", async (req, res) => {
-  console.log("📩 New Gmail notification received!", req.body);
-
-  const messageData = req.body.message?.data;
-  let parsedData;
-  if (messageData) {
-    try {
-      const buffer = Buffer.from(messageData, "base64");
-      parsedData = JSON.parse(buffer.toString("utf-8"));
-    } catch (error) {
-      console.error("❌ Failed to parse message data:", error);
-      return res.status(400).json({ error: "Invalid message data" });
-    }
-  }
-
-  const historyId = parsedData?.historyId;
-  if (!historyId) {
-    console.error("❌ Missing historyId in webhook payload", req.body);
-    return res.status(400).json({ error: "Missing historyId" });
-  }
-
   try {
-    // ✅ Check for duplicate webhook
-    const isDuplicate = await WebhookLogModel.exists({ historyId });
-    if (isDuplicate) {
-      console.log(`⚠️ Duplicate webhook detected, ignoring: ${historyId}`);
-      return res.sendStatus(200);
-    }
+    const messageData = req.body.message?.data;
+    const buffer = Buffer.from(messageData, "base64");
+    const parsedData = JSON.parse(buffer.toString("utf-8"));
 
-    // ✅ Store webhook log before processing
+    const historyId = parsedData.historyId;
+    const emailAddress = parsedData.emailAddress; // Gmail address that received message
+
+    const user = await UserModel.findOne({ email: emailAddress });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const exists = await WebhookLogModel.findOne({ historyId });
+    if (exists) return res.sendStatus(200);
+
     await WebhookLogModel.create({ historyId });
+    await fetchReplies(user, historyId);
+    // Emit event to connected clients
 
-    // ✅ Process Gmail replies asynchronously
-    fetchReplies()
-      .then(() =>
-        console.log(`📨 Processed emails for historyId: ${historyId}`)
-      )
-      .catch((error) => console.error("❌ Error fetching replies:", error));
-
-    io.emit("newEmail", { message: "New email received" });
+    io.to(`user_${user._id}`).emit("newEmail", {
+      message: "New email received",
+    });
+    console.log("📬 Webhook received and processed successfully");
     res.sendStatus(200);
-  } catch (error) {
-    console.error("❌ Error processing Gmail webhook:", error);
+  } catch (err) {
+    console.error("❌ Webhook Error:", err);
     res.sendStatus(500);
   }
 });

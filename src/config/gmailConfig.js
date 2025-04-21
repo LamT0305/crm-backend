@@ -31,11 +31,11 @@ export const refreshAccessToken = async (userId) => {
 
     // Refresh the access token
     const { credentials } = await oauth2Client.refreshAccessToken();
-    oauth2Client.setCredentials(credentials);
+    user.accessToken = credentials.access_token;
+    await user.save();
 
-    console.log("✅ Access token refreshed:", credentials.access_token);
-
-    return credentials.access_token;
+    oauth2Client.setCredentials({ access_token: credentials.access_token });
+    return oauth2Client;
   } catch (error) {
     console.error("❌ Error refreshing access token:", error);
     throw error;
