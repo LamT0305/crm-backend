@@ -177,50 +177,69 @@ export const getEmails = async (req, res) => {
 
 export const fetchReplies = async (user, historyIdFromWebhook) => {
   try {
+    // Get fresh auth token
     const auth = await refreshAccessToken(user._id);
     const gmail = google.gmail({ version: "v1", auth });
 
+    console.log("🔍 Fetching emails with historyId:", historyIdFromWebhook);
+
     const history = await gmail.users.history.list({
       userId: "me",
-      startHistoryId: user.lastHistoryId || historyIdFromWebhook,
+      startHistoryId: historyIdFromWebhook,
       historyTypes: ["messageAdded"],
     });
+
+    console.log("📨 History data:", JSON.stringify(history.data, null, 2));
 
     const historyList = history.data.history || [];
     const addedMessages = historyList
       .flatMap((h) => h.messages || [])
       .filter((m) => m.id);
-
+      
     if (!addedMessages || addedMessages.length === 0) return;
+
+    console.log("📝 Found messages:", addedMessages.length);
 
     for (const msg of addedMessages) {
       try {
         const msgData = await gmail.users.messages.get({
           userId: "me",
           id: msg.id,
+          format: "full", // Add this to get full message data
         });
 
         const headers = msgData.data.payload.headers;
         const fromHeader = headers.find((h) => h.name === "From");
         const senderEmail = extractEmailAddress(fromHeader?.value || "");
 
+        console.log("📧 Processing email from:", senderEmail);
+
         const customer = await CustomerModel.findOne({
           email: senderEmail,
-        }).lean();
-        if (!customer) continue;
+          workspace: { $exists: true }, // Make sure customer has workspace
+        });
+
+        if (!customer) {
+          console.log("⚠️ No customer found for email:", senderEmail);
+          continue;
+        }
 
         const exists = await EmailModel.findOne({
           messageId: msg.id,
           workspace: customer.workspace,
-        }).lean();
-        if (exists) continue;
+        });
+
+        if (exists) {
+          console.log("⚠️ Email already exists:", msg.id);
+          continue;
+        }
 
         const subject =
           headers.find((h) => h.name === "Subject")?.value || "No Subject";
         const body = getEmailBody(msgData.data.payload);
         const attachments = await fetchAttachments(msgData.data);
 
-        await EmailModel.create({
+        const newEmail = await EmailModel.create({
           userId: user._id,
           to: senderEmail,
           subject,
@@ -235,17 +254,19 @@ export const fetchReplies = async (user, historyIdFromWebhook) => {
         });
 
         await handleNewEmail(newEmail, customer);
+        console.log("✅ Email processed successfully:", msg.id);
       } catch (err) {
         console.error("❌ Error processing message:", err);
       }
     }
 
-    // ✅ Save latest historyId
+    // Update user's lastHistoryId
     await UserModel.findByIdAndUpdate(user._id, {
       lastHistoryId: historyIdFromWebhook,
     });
   } catch (err) {
     console.error("❌ Error in fetchReplies:", err);
+    throw err; // Propagate error for webhook handling
   }
 };
 
