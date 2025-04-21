@@ -186,11 +186,12 @@ export const fetchReplies = async (user, historyIdFromWebhook) => {
       historyTypes: ["messageAdded"],
     });
 
-    const addedMessages = history.data.history
-      ?.flatMap((h) => h.messages || [])
+    const historyList = history.data.history || [];
+    const addedMessages = historyList
+      .flatMap((h) => h.messages || [])
       .filter((m) => m.id);
 
-    if (!addedMessages.length) return;
+    if (!addedMessages || addedMessages.length === 0) return;
 
     for (const msg of addedMessages) {
       try {
