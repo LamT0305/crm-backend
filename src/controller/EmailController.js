@@ -177,7 +177,6 @@ export const getEmails = async (req, res) => {
 
 export const fetchReplies = async (user, historyIdFromWebhook) => {
   try {
-    // Get fresh auth token
     const auth = await refreshAccessToken(user._id);
     const gmail = google.gmail({ version: "v1", auth });
 
@@ -186,17 +185,33 @@ export const fetchReplies = async (user, historyIdFromWebhook) => {
     const history = await gmail.users.history.list({
       userId: "me",
       startHistoryId: historyIdFromWebhook,
-      historyTypes: ["messageAdded"],
+      labelId: "INBOX",
+      maxResults: 100,
     });
 
     console.log("📨 History data:", JSON.stringify(history.data, null, 2));
 
     const historyList = history.data.history || [];
     const addedMessages = historyList
-      .flatMap((h) => h.messages || [])
-      .filter((m) => m.id);
-      
-    if (!addedMessages || addedMessages.length === 0) return;
+      .flatMap((h) => {
+        const messages = [];
+        if (h.messages) messages.push(...h.messages);
+        if (h.messagesAdded)
+          messages.push(...h.messagesAdded.map((m) => m.message));
+        if (h.labelsAdded) {
+          const inboxMessages = h.labelsAdded
+            .filter((l) => l.labelIds.includes("INBOX"))
+            .map((l) => l.message);
+          messages.push(...inboxMessages);
+        }
+        return messages;
+      })
+      .filter((m) => m && m.id);
+
+    if (!addedMessages || addedMessages.length === 0) {
+      console.log("⚠️ No new messages found");
+      return;
+    }
 
     console.log("📝 Found messages:", addedMessages.length);
 
@@ -205,7 +220,7 @@ export const fetchReplies = async (user, historyIdFromWebhook) => {
         const msgData = await gmail.users.messages.get({
           userId: "me",
           id: msg.id,
-          format: "full", // Add this to get full message data
+          format: "full",
         });
 
         const headers = msgData.data.payload.headers;
@@ -216,7 +231,7 @@ export const fetchReplies = async (user, historyIdFromWebhook) => {
 
         const customer = await CustomerModel.findOne({
           email: senderEmail,
-          workspace: { $exists: true }, // Make sure customer has workspace
+          workspace: { $exists: true },
         });
 
         if (!customer) {
@@ -260,13 +275,12 @@ export const fetchReplies = async (user, historyIdFromWebhook) => {
       }
     }
 
-    // Update user's lastHistoryId
     await UserModel.findByIdAndUpdate(user._id, {
       lastHistoryId: historyIdFromWebhook,
     });
   } catch (err) {
     console.error("❌ Error in fetchReplies:", err);
-    throw err; // Propagate error for webhook handling
+    throw err;
   }
 };
 
