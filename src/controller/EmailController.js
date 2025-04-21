@@ -9,6 +9,7 @@ import multer from "multer";
 import { getIO } from "../socket.js";
 import NotificationModel from "../model/NotificationModel.js";
 import CustomerModel from "../model/CustomerModel.js";
+import { listRecentInboxMessages } from "../utils/recentInbox.js";
 
 const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 const upload = multer({ storage: multer.memoryStorage() });
@@ -189,8 +190,6 @@ export const fetchReplies = async (user, historyIdFromWebhook) => {
       maxResults: 100,
     });
 
-    console.log("📨 History data:", JSON.stringify(history.data, null, 2));
-
     const historyList = history.data.history || [];
     const addedMessages = historyList
       .flatMap((h) => {
@@ -208,14 +207,17 @@ export const fetchReplies = async (user, historyIdFromWebhook) => {
       })
       .filter((m) => m && m.id);
 
-    if (!addedMessages || addedMessages.length === 0) {
-      console.log("⚠️ No new messages found");
-      return;
+    let messagesToProcess = addedMessages;
+
+    // 🔁 Fallback if no messages found in history
+    if (!messagesToProcess || messagesToProcess.length === 0) {
+      console.warn(
+        "⚠️ No messages found in history, falling back to inbox scan"
+      );
+      messagesToProcess = await listRecentInboxMessages(gmail, 10); // Grab last 10
     }
 
-    console.log("📝 Found messages:", addedMessages.length);
-
-    for (const msg of addedMessages) {
+    for (const msg of messagesToProcess) {
       try {
         const msgData = await gmail.users.messages.get({
           userId: "me",
@@ -226,8 +228,6 @@ export const fetchReplies = async (user, historyIdFromWebhook) => {
         const headers = msgData.data.payload.headers;
         const fromHeader = headers.find((h) => h.name === "From");
         const senderEmail = extractEmailAddress(fromHeader?.value || "");
-
-        console.log("📧 Processing email from:", senderEmail);
 
         const customer = await CustomerModel.findOne({
           email: senderEmail,
