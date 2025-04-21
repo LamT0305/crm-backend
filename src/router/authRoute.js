@@ -3,6 +3,7 @@ import passport from "passport";
 import jwt from "jsonwebtoken";
 import { verifyToken } from "../middleware/authMiddleWare.js";
 import UserModel from "../model/UserModel.js";
+import { watchUserInbox } from "../utils/watchGmail.js";
 
 const router = express.Router();
 
@@ -30,6 +31,13 @@ router.get(
     if (!req.user) {
       return res.status(401).json({ message: "Google login failed" });
     }
+
+    // ✅ User successfully logged in
+    const user = req.user;
+
+    // ✅ You should already be saving refreshToken and accessToken to DB
+    // Now, trigger Gmail webhook setup for this user's inbox
+    await watchUserInbox(user);
 
     const token = jwt.sign(
       { id: req.user.id, email: req.user.email, name: req.user.name },
