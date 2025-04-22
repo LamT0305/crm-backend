@@ -1,4 +1,5 @@
 import UserModel from "../model/UserModel.js";
+import WorkspaceModel from "../model/WorkspaceModel.js";
 import { successResponse, errorResponse } from "../utils/responseHandler.js";
 import fs from "fs";
 
@@ -61,17 +62,21 @@ export const viewListUsers = async (req, res) => {
 
 export const viewListUsersInWorkspace = async (req, res) => {
   try {
-    const users = await UserModel.find({
-      workspaces: {
-        $elemMatch: {
-          workspace: req.workspaceId,
-        },
+    const workspaceId = req.workspaceId;
+    const workspace = await WorkspaceModel.findById(workspaceId);
+    if (!workspace) {
+      return errorResponse(res, "Workspace not found", 404);
+    }
+
+    const users = workspace.members.map((member) => member.user);
+    const userDetails = await UserModel.find({
+      _id: {
+        $in: users,
+        $ne: req.user.id, // Exclude current user
       },
-      _id: { $ne: req.user.id },
-    })
-      .select("-password -refreshToken -accessToken")
-      .sort({ createdAt: -1 });
-    successResponse(res, users);
+    }).select("-password -refreshToken -accessToken");
+
+    successResponse(res, userDetails);
   } catch (error) {
     errorResponse(res, error.message);
   }
