@@ -75,6 +75,7 @@ export const viewListUsersInWorkspace = async (req, res) => {
         $ne: req.user.id, // Exclude current user
       },
     }).select("-password -refreshToken -accessToken");
+    console.log(userDetails); // Add this line to log the userDetails array to the termina
 
     successResponse(res, userDetails);
   } catch (error) {
