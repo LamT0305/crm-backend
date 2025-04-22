@@ -62,8 +62,12 @@ export const viewListUsers = async (req, res) => {
 export const viewListUsersInWorkspace = async (req, res) => {
   try {
     const users = await UserModel.find({
-      "workspaces.workspace": req.workspaceId,
-      _id: { $ne: req.user.id }, // Exclude current user
+      workspaces: {
+        $elemMatch: {
+          workspace: req.workspaceId,
+        },
+      },
+      _id: { $ne: req.user.id },
     })
       .select("-password -refreshToken -accessToken")
       .sort({ createdAt: -1 });

@@ -269,7 +269,9 @@ export const createGroup = async (req, res) => {
 
     const io = getIO();
     members.forEach((memberId) => {
-      io.to(`user_${memberId}`).emit("newGroup", populatedGroup);
+      if (memberId.toString() !== req.user.id.toString()) {
+        io.to(`user_${memberId}`).emit("newGroup", populatedGroup);
+      }
     });
 
     successResponse(res, populatedGroup);
