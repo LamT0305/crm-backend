@@ -17,6 +17,21 @@ export const setUserCredentials = (refreshToken) => {
   });
 };
 
+export const createOAuth2ClientForUser = (user) => {
+  const client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI
+  );
+
+  client.setCredentials({
+    access_token: user.accessToken,
+    refresh_token: user.refreshToken,
+  });
+
+  return client;
+};
+
 // Fetch stored refresh token, update access token
 export const refreshAccessToken = async (userId) => {
   try {

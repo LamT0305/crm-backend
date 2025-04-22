@@ -1,6 +1,9 @@
 import EmailModel from "../model/EmailModel.js";
 import { successResponse, errorResponse } from "../utils/responseHandler.js";
-import { oauth2Client, refreshAccessToken } from "../config/gmailConfig.js";
+import {
+  refreshAccessToken,
+  createOAuth2ClientForUser,
+} from "../config/gmailConfig.js";
 import { google } from "googleapis";
 import { getEmailBody } from "../utils/extractEmailBody.js";
 import UserModel from "../model/UserModel.js";
@@ -11,7 +14,6 @@ import NotificationModel from "../model/NotificationModel.js";
 import CustomerModel from "../model/CustomerModel.js";
 import { listRecentInboxMessages } from "../utils/recentInbox.js";
 
-const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 const upload = multer({ storage: multer.memoryStorage() });
 
 const extractEmailAddress = (from) => {
@@ -80,6 +82,10 @@ export const sendEmail = async (req, res) => {
       if (!to || !subject || !message) {
         return res.status(400).json({ error: "Missing required fields" });
       }
+
+      const user = await UserModel.findById(req.user.id);
+      const client = createOAuth2ClientForUser(user);
+      const gmail = google.gmail({ version: "v1", auth: client });
 
       const attachments = [];
       const emailBody = createEmailBody(to, subject, message, req.files);
@@ -177,8 +183,10 @@ export const getEmails = async (req, res) => {
 
 export const fetchReplies = async (user, historyIdFromWebhook) => {
   try {
-    const auth = await refreshAccessToken(user._id);
-    const gmail = google.gmail({ version: "v1", auth });
+    await refreshAccessToken(user._id);
+    const freshUser = await UserModel.findById(user._id);
+    const client = createOAuth2ClientForUser(freshUser);
+    const gmail = google.gmail({ version: "v1", auth: client });
 
     console.log("🔍 Fetching emails with historyId:", historyIdFromWebhook);
 
@@ -399,10 +407,15 @@ export const handleDeleteEmail = async (req, res) => {
 };
 
 // Add this new function at the top of the file, after the imports
-export const sendInvitationEmail = async ({ email, subject, message }) => {
+export const sendInvitationEmail = async (
+  user,
+  { email, subject, message }
+) => {
   try {
-    const emailBody = createEmailBody(email, subject, message);
+    const client = createOAuth2ClientForUser(user);
+    const gmail = google.gmail({ version: "v1", auth: client });
 
+    const emailBody = createEmailBody(email, subject, message);
     const rawMessage = Buffer.from(emailBody.join("\n"))
       .toString("base64")
       .replace(/\+/g, "-")
