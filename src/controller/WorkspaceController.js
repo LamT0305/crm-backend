@@ -101,7 +101,8 @@ export const inviteMember = async (req, res) => {
     await sendInvitationEmail(user, {
       email,
       subject: "Workspace Invitation",
-      message: `You have been invited to join the workspace "${workspace.name}" by ${user.name}. Please click the link below to accept the invitation: ${INVITATION_URL}`,
+      message: `You have been invited to join the workspace "${workspace.name}" by ${user.name}. Please click the link below to accept the invitation:`,
+      link: INVITATION_URL,
     });
 
     // notification

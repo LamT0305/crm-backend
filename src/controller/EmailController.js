@@ -409,13 +409,104 @@ export const handleDeleteEmail = async (req, res) => {
 // Add this new function at the top of the file, after the imports
 export const sendInvitationEmail = async (
   user,
-  { email, subject, message }
+  { email, subject, message, link }
 ) => {
   try {
     const client = createOAuth2ClientForUser(user);
     const gmail = google.gmail({ version: "v1", auth: client });
 
-    const emailBody = createEmailBody(email, subject, message);
+    // Create a more professional HTML email template
+    const htmlBody = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .header {
+              background-color: #f8f9fa;
+              padding: 20px;
+              text-align: center;
+              border-radius: 5px;
+              margin-bottom: 20px;
+            }
+            .content {
+              background-color: #ffffff;
+              padding: 20px;
+              border-radius: 5px;
+              border: 1px solid #e9ecef;
+            }
+            .button {
+              display: inline-block;
+              padding: 12px 24px;
+              background-color: #0066cc;
+              color: #ffffff;
+              text-decoration: none;
+              border-radius: 5px;
+              margin: 20px 0;
+            }
+            .button:hover {
+              background-color: #0052a3;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 20px;
+              padding-top: 20px;
+              border-top: 1px solid #e9ecef;
+              font-size: 12px;
+              color: #6c757d;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2 style="margin: 0; color: #0066cc;">${subject}</h2>
+          </div>
+          <div class="content">
+            <p>${message}</p>
+            <div style="text-align: center;">
+              <a href="${link}" class="button" style="color: #ffffff;">Accept Invitation</a>
+            </div>
+            <p style="font-size: 12px; color: #666;">If the button doesn't work, copy and paste this link into your browser:</p>
+            <p style="font-size: 12px; color: #666;">${link}</p>
+          </div>
+          <div class="footer">
+            <p>This is an automated invitation from your CRM system</p>
+            <p>If you didn't expect this invitation, please ignore this email.</p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const emailBody = [
+      `To: ${email}`,
+      "From: me",
+      `Subject: ${subject}`,
+      "MIME-Version: 1.0",
+      'Content-Type: multipart/alternative; boundary="boundary123"',
+      "",
+      "--boundary123",
+      'Content-Type: text/plain; charset="UTF-8"',
+      "Content-Transfer-Encoding: 7bit",
+      "",
+      `${message}\n\nClick here to accept the invitation: ${link}`, // Plain text version
+      "",
+      "--boundary123",
+      'Content-Type: text/html; charset="UTF-8"',
+      "Content-Transfer-Encoding: 7bit",
+      "",
+      htmlBody,
+      "",
+      "--boundary123--",
+    ];
+
     const rawMessage = Buffer.from(emailBody.join("\n"))
       .toString("base64")
       .replace(/\+/g, "-")
