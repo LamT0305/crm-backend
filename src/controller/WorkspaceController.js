@@ -98,7 +98,7 @@ export const inviteMember = async (req, res) => {
     await workspace.save();
 
     const INVITATION_URL = `${process.env.FRONTEND_URL}/join-workspace/${token}`;
-    await sendInvitationEmail({
+    await sendInvitationEmail(user, {
       email,
       subject: "Workspace Invitation",
       message: `You have been invited to join the workspace "${workspace.name}" by ${user.name}. Please click the link below to accept the invitation: ${INVITATION_URL}`,
