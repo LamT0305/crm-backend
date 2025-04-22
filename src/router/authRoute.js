@@ -35,9 +35,11 @@ router.get(
     // ✅ User successfully logged in
     const user = req.user;
 
-    // ✅ You should already be saving refreshToken and accessToken to DB
-    // Now, trigger Gmail webhook setup for this user's inbox
-    // await watchUserInbox(user);
+    try {
+      await watchUserInbox(user); // Gmail webhook setup
+    } catch (watchErr) {
+      console.error("❌ Failed to setup Gmail watch:", watchErr.message);
+    }
 
     const token = jwt.sign(
       { id: req.user.id, email: req.user.email, name: req.user.name },
