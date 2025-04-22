@@ -160,7 +160,6 @@ export const getEmails = async (req, res) => {
     // await fetchReplies();
 
     const emails = await EmailModel.find({
-      userId: req.user.id,
       workspace: req.workspaceId,
       to: customer.email,
       isDeleted: { $ne: true },
