@@ -1,4 +1,3 @@
-// utils/watchGmail.js or in your controller
 import { google } from "googleapis";
 
 export const watchUserInbox = async (user) => {
@@ -15,7 +14,8 @@ export const watchUserInbox = async (user) => {
 
   const gmail = google.gmail({ version: "v1", auth: oAuth2 });
 
-  await gmail.users.watch({
+  // ✅ Store the result in a variable (e.g., response)
+  const response = await gmail.users.watch({
     userId: "me",
     requestBody: {
       topicName: "projects/crmproject-452616/topics/gmail-notifications",
@@ -24,5 +24,5 @@ export const watchUserInbox = async (user) => {
     },
   });
 
-  console.log(`✅ Gmail watch set up for ${user.email}`, res.data);
+  console.log(`✅ Gmail watch set up for ${user.email}`, response.data);
 };
