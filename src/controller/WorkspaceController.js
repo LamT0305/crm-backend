@@ -222,6 +222,13 @@ export const setMemberRole = async (req, res) => {
       return errorResponse(res, "User is not a member of this workspace", 404);
     }
     targetMember.role = role;
+    await workspace.populate([
+      { path: "owner", select: "name email" },
+      {
+        path: "members.user",
+        select: "name email",
+      },
+    ]);
     await workspace.save();
     // notification
     const notification = await NotificationModel.create({
@@ -298,7 +305,6 @@ export const switchWorkspace = async (req, res) => {
 
     await user.populate({
       path: "currentWorkspace",
-      select: "name",
     });
 
     return successResponse(res, {
@@ -323,7 +329,6 @@ export const userWorkspaces = async (req, res) => {
       })
       .populate({
         path: "currentWorkspace",
-        select: "name",
       });
 
     if (!user) {
@@ -473,7 +478,6 @@ export const deleteWorkspace = async (req, res) => {
 
     await Promise.all(notifications);
     const io = getIO();
-    console.log("Emitting to members:", workspace.members);
     workspace.members
       .filter((member) => member.role === "Member")
       .forEach((member) => {

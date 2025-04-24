@@ -11,6 +11,7 @@ import {
   deleteWorkspace,
   leaveWorkspace,
   deleteMember,
+  setMemberRole,
 } from "../controller/WorkspaceController.js";
 
 const router = express.Router();
@@ -24,6 +25,7 @@ router.get("/details", getWorkspaceDetails);
 router.post("/switch", switchWorkspace);
 router.get("/user-workspaces", userWorkspaces);
 
+router.put("/set-member-role", setMemberRole);
 router.put("/update-name", updateWorkspaceName);
 router.delete("/delete/:workspaceId", deleteWorkspace);
 router.delete("/leave/:workspaceId", leaveWorkspace);
