@@ -17,10 +17,12 @@ export const getNotifications = async (req, res) => {
 
 export const markAsRead = async (req, res) => {
   try {
-    const notification = await NotificationModel.findOneAndUpdate(
+    console.log("id", req.params.id);
+    const notification = await NotificationModel.findByIdAndUpdate(
       {
         _id: req.params.id,
         userId: req.user.id,
+        workspace: req.workspaceId,
       },
       { status: "Read" },
       { new: true }
