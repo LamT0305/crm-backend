@@ -8,7 +8,11 @@ const NotificationSchema = new mongoose.Schema({
   },
   title: String,
   message: String,
-  status: { type: String, enum: ["Unread", "Read"] },
+  status: {
+    type: String,
+    enum: ["Unread", "Read"],
+    default: "Unread",
+  },
   link: String,
   workspace: {
     type: mongoose.Schema.Types.ObjectId,
@@ -19,5 +23,3 @@ const NotificationSchema = new mongoose.Schema({
 });
 const NotificationModel = mongoose.model("Notification", NotificationSchema);
 export default NotificationModel;
-
-

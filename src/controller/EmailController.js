@@ -523,3 +523,140 @@ export const sendInvitationEmail = async (
     throw error;
   }
 };
+
+// create email to send assign task to user
+export const sendAssignTaskEmail = async (
+  user,
+  { email, subject, message, link }
+) => {
+  try {
+    const client = createOAuth2ClientForUser(user);
+    const gmail = google.gmail({ version: "v1", auth: client });
+    // Create a more professional HTML email template
+    const htmlBody = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .notification-card {
+              background-color: #ffffff;
+              border: 1px solid #e1e4e8;
+              border-radius: 8px;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+              padding: 20px;
+            }
+            .notification-header {
+              display: flex;
+              align-items: center;
+              margin-bottom: 15px;
+              padding-bottom: 15px;
+              border-bottom: 1px solid #e1e4e8;
+            }
+            .notification-icon {
+              background-color: #0066cc;
+              color: white;
+              width: 40px;
+              height: 40px;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              margin-right: 15px;
+              font-size: 20px;
+            }
+            .notification-title {
+              color: #24292e;
+              font-size: 18px;
+              font-weight: 600;
+              margin: 0;
+            }
+            .notification-content {
+              color: #444d56;
+              margin: 15px 0;
+            }
+            .action-button {
+              display: inline-block;
+              padding: 10px 20px;
+              background-color: #0066cc;
+              color: #ffffff !important;
+              text-decoration: none;
+              border-radius: 6px;
+              font-weight: 500;
+              margin-top: 15px;
+            }
+            .action-button:hover {
+              background-color: #0052a3;
+            }
+            .notification-footer {
+              margin-top: 20px;
+              padding-top: 15px;
+              border-top: 1px solid #e1e4e8;
+              color: #6a737d;
+              font-size: 12px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="notification-card">
+            <div class="notification-header">
+              <div class="notification-icon">📋</div>
+              <h2 class="notification-title">${subject}</h2>
+            </div>
+            <div class="notification-content">
+              ${message}
+            </div>
+            <div style="text-align: left;">
+              <a href="${link}" class="action-button">View Task Details</a>
+            </div>
+            <div class="notification-footer">
+              <p>This is an automated notification from LeadMaster CRM</p>
+              <p>If you weren't expecting this notification, please contact your workspace administrator.</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+    const emailBody = [
+      `To: ${email}`,
+      "From: me",
+      `Subject: ${subject}`,
+      "MIME-Version: 1.0",
+      'Content-Type: multipart/alternative; boundary="boundary123"',
+      "",
+      "--boundary123",
+      'Content-Type: text/plain; charset="UTF-8"',
+      "Content-Transfer-Encoding: 7bit",
+      "",
+      `${message}\n\nView your assigned task here: ${link}`,
+      "",
+      "--boundary123",
+      'Content-Type: text/html; charset="UTF-8"',
+      "Content-Transfer-Encoding: 7bit",
+      "",
+      htmlBody,
+      "",
+      "--boundary123--",
+    ];
+    const rawMessage = Buffer.from(emailBody.join("\n"))
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_");
+    await gmail.users.messages.send({
+      userId: "me",
+      requestBody: { raw: rawMessage },
+    });
+    return true;
+  } catch (error) {
+    console.error("Send invitation email error:", error);
+    throw error;
+  }
+};

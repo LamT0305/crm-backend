@@ -200,3 +200,46 @@ export const deleteCustomer = async (req, res) => {
   }
 };
 
+export const addTagCustomer = async (req, res) => {
+  try {
+    const { tag } = req.body;
+    if (!tag) {
+      return res.status(400).json({ message: "Tag is required" });
+    }
+    const customer = await CustomerModel.findById(req.params.id);
+    if (!customer) {
+      return res.status(404).json({ message: "Customer not found" });
+    }
+    if (customer.tags.includes(tag)) {
+      return res.status(400).json({ message: "Tag already exists" });
+    }
+    customer.tags.push(tag);
+    await customer.save();
+    successResponse(res, customer);
+  } catch (error) {
+    console.error("Add Tag Customer Error:", error);
+    errorResponse(res, error.message);
+  }
+};
+
+export const removeTagCustomer = async (req, res) => {
+  try {
+    const { tag } = req.body;
+    if (!tag) {
+      return res.status(400).json({ message: "Tag is required" });
+    }
+    const customer = await CustomerModel.findById(req.params.id);
+    if (!customer) {
+      return res.status(404).json({ message: "Customer not found" });
+    }
+    if (!customer.tags.includes(tag)) {
+      return res.status(400).json({ message: "Tag does not exist" });
+    }
+    customer.tags = customer.tags.filter((t) => t !== tag);
+    await customer.save();
+    successResponse(res, customer);
+  } catch (error) {
+    console.error("Remove Tag Customer Error:", error);
+    errorResponse(res, error.message);
+  }
+};

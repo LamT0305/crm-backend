@@ -10,6 +10,7 @@ import { appRouter } from "./config/router.js";
 import { createServer } from "http";
 import setupSocket from "./socket.js";
 import UserModel from "./model/UserModel.js";
+import { initializeTaskScheduler } from "./utils/taskSchedule.js";
 
 // Load environment variables
 dotenv.config();
@@ -48,6 +49,9 @@ app.use(passport.initialize());
 
 // ✅ Register Routes (Make sure middleware is initialized first)
 appRouter(app);
+
+// Initialize task scheduler
+initializeTaskScheduler();
 
 // 📬 Gmail Webhook Listener
 app.post("/gmail/webhook", async (req, res) => {

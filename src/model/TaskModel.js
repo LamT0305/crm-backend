@@ -24,7 +24,7 @@ const TaskSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["Backlog", "Todo", "InProgress", "Completed", "Canceled"],
+    enum: ["Backlog", "Todo", "InProgress", "Completed", "Canceled", "Overdue"],
   },
   workspace: {
     type: mongoose.Schema.Types.ObjectId,

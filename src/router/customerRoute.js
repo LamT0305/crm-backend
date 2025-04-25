@@ -1,10 +1,12 @@
 import express from "express";
 import {
+  addTagCustomer,
   createCustomer,
   deleteCustomer,
   getCustomerById,
   getCustomersByUser,
   getLeadsByUser,
+  removeTagCustomer,
   updateCustomer,
 } from "../controller/CustomerController.js";
 import { verifyToken } from "../middleware/authMiddleWare.js";
@@ -23,5 +25,9 @@ router.get("/leads", getLeadsByUser);
 router.get("/:id", getCustomerById);
 router.delete("/:id", deleteCustomer);
 router.put("/:id", updateCustomer);
+
+// new
+router.put("/tags/:id", addTagCustomer);
+router.put("/removeTag/:id", removeTagCustomer);
 
 export default router;
