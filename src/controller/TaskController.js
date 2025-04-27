@@ -72,12 +72,18 @@ export const createTask = async (req, res) => {
       if (!assigneeUser) {
         return errorResponse(res, "Assignee not found", 404);
       }
-      await sendAssignTaskEmail(user, {
-        email: assigneeUser.email,
-        subject: "Task Assigned",
-        message: `You have been assigned a new task: ${title}`,
-        link: `${process.env.FRONTEND_URL}/customerinfo/${customerId}`,
-      });
+      try {
+        await sendAssignTaskEmail(user, {
+          email: assigneeUser.email,
+          subject: "Task Assigned",
+          message: `You have been assigned a new task: ${title}`,
+          link: `${process.env.FRONTEND_URL}/customerinfo/${customerId}`,
+        });
+      } catch (error) {
+        console.log(error);
+        return errorResponse(res, "Error sending email", 500);
+      }
+
       const noti = await NotificationModel.create({
         userId: req.user.id,
         workspace: req.workspaceId,
@@ -161,12 +167,17 @@ export const updateTask = async (req, res) => {
         if (!user) {
           return errorResponse(res, "User not found", 404);
         }
-        await sendAssignTaskEmail(user, {
-          email: assigneeUser.email,
-          subject: "Task Assigned",
-          message: `You have been assigned a new task: ${title}`,
-          link: `${process.env.FRONTEND_URL}/customerinfo/${task.customerId}`,
-        });
+        try {
+          await sendAssignTaskEmail(user, {
+            email: assigneeUser.email,
+            subject: "Task Assigned",
+            message: `You have been assigned a new task: ${title}`,
+            link: `${process.env.FRONTEND_URL}/customerinfo/${task.customerId}`,
+          });
+        } catch (error) {
+          console.log(error);
+          return errorResponse(res, "Error sending email", 500);
+        }
 
         const noti = await NotificationModel.create({
           userId: req.user.id,
