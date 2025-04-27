@@ -41,22 +41,6 @@ export const createTask = async (req, res) => {
       return errorResponse(res, "Invalid status", 400);
     }
 
-    if (assignee !== req.user.id) {
-      const assigneeUser = await UserModel.findById(assignee);
-      const user = await UserModel.findById(req.user.id);
-      if (!user) {
-        return errorResponse(res, "User not found", 404);
-      }
-      if (!assigneeUser) {
-        return errorResponse(res, "Assignee not found", 404);
-      }
-      await sendAssignTaskEmail(user, {
-        email: assigneeUser.email,
-        subject: "Task Assigned",
-        message: `You have been assigned a new task: ${title}`,
-        link: `${process.env.FRONTEND_URL}/customerinfo/${customerId}`,
-      });
-    }
     const task = await TaskModel.create({
       userId: req.user.id,
       assignee: assignee,
@@ -79,16 +63,32 @@ export const createTask = async (req, res) => {
       { path: "customerId", select: "firstName lastName email" },
     ]);
 
-    const noti = await NotificationModel.create({
-      userId: req.user.id,
-      workspace: req.workspaceId,
-      title: "New Task Assigned",
-      message: `You have been assigned a new task: ${title}`,
-      link: `${process.env.FRONTEND_URL}/customerinfo/${customerId}`,
-    });
+    if (assignee !== req.user.id) {
+      const assigneeUser = await UserModel.findById(assignee);
+      const user = await UserModel.findById(req.user.id);
+      if (!user) {
+        return errorResponse(res, "User not found", 404);
+      }
+      if (!assigneeUser) {
+        return errorResponse(res, "Assignee not found", 404);
+      }
+      await sendAssignTaskEmail(user, {
+        email: assigneeUser.email,
+        subject: "Task Assigned",
+        message: `You have been assigned a new task: ${title}`,
+        link: `${process.env.FRONTEND_URL}/customerinfo/${customerId}`,
+      });
+      const noti = await NotificationModel.create({
+        userId: req.user.id,
+        workspace: req.workspaceId,
+        title: "New Task Assigned",
+        message: `You have been assigned a new task: ${title}`,
+        link: `${process.env.FRONTEND_URL}/customerinfo/${customerId}`,
+      });
 
-    const io = getIO();
-    io.to(assignee).emit("new_task", noti);
+      const io = getIO();
+      io.to(assignee).emit("new_task", noti);
+    }
 
     successResponse(res, populatedTask);
   } catch (error) {
