@@ -43,10 +43,14 @@ export const createTask = async (req, res) => {
 
     if (assignee !== req.user.id) {
       const assigneeUser = await UserModel.findById(assignee);
+      const user = await UserModel.findById(req.user.id);
+      if (!user) {
+        return errorResponse(res, "User not found", 404);
+      }
       if (!assigneeUser) {
         return errorResponse(res, "Assignee not found", 404);
       }
-      await sendAssignTaskEmail(assigneeUser, {
+      await sendAssignTaskEmail(user, {
         email: assigneeUser.email,
         subject: "Task Assigned",
         message: `You have been assigned a new task: ${title}`,
