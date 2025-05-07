@@ -68,3 +68,8 @@ Open your web browser and navigate to URL_ADDRESS:3000 to access the CRM backend
 # Build Notes
 
 This README provides a comprehensive guide focused on environment setup and build notes, making it easy for newcomers to get started with the project. It includes detailed steps, common issues and solutions, and helpful resources for development.
+
+
+#Account testing
+email: jzeem643@gmail.com
+password: 0359369208a

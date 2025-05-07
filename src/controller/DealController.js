@@ -138,10 +138,13 @@ export const updateDeal = async (req, res) => {
     }).populate("products.productId");
 
     if (!deal) {
-      return res.status(404).json({
-        message: "Deal not found or not authorized to update",
-      });
+      return res
+        .status(404)
+        .json({ message: "Deal not found or not authorized to update" });
     }
+
+    // Refactored effective values for products and discount
+    const effectiveProducts = products || deal.products;
 
     if (products || discount) {
       if (!validateDiscount(discount)) {
@@ -150,51 +153,62 @@ export const updateDeal = async (req, res) => {
         });
       }
 
+      const effectiveDiscount = discount || deal.quotationId.discount;
       const { totalPrice, finalPrice } = calculatePrices(
-        products || deal.products,
-        discount || deal.quotationId.discount
+        effectiveProducts,
+        effectiveDiscount
       );
 
-      await QuotationModel.findOneAndUpdate(
+      const quotation = await QuotationModel.findOneAndUpdate(
         {
           _id: deal.quotationId,
           workspace: req.workspaceId,
         },
         {
-          products: products || deal.products,
+          products: effectiveProducts,
           totalPrice,
           finalPrice,
-          discount: discount || deal.quotationId.discount,
+          discount: effectiveDiscount,
           updatedAt: new Date(),
         },
         { new: true }
       );
+
+      // Update customer revenue for transitioning to Won
+      if (status === "Won" && deal.status !== "Won") {
+        const customer = await CustomerModel.findById(customerId);
+        if (!customer) {
+          return res.status(404).json({ message: "Customer not found" });
+        }
+        customer.totalRevenue += quotation.finalPrice;
+        await customer.save();
+      }
     }
 
-    // Handle stock updates for Won deals
+    // Optimize stock update: concurrently update stock for each product
     if (status === "Won" && deal.status !== "Won") {
-      for (const product of products || deal.products) {
-        const productDoc = await ProductServiceModel.findOne({
-          _id: product.productId,
-          workspace: req.workspaceId,
-        });
-
-        if (!productDoc) {
-          return res.status(404).json({
-            message: `Product not found: ${product.productId}`,
+      await Promise.all(
+        effectiveProducts.map(async (product) => {
+          const productDoc = await ProductServiceModel.findOne({
+            _id: product.productId,
+            workspace: req.workspaceId,
           });
-        }
-        if (productDoc.stock > 0) {
-          if (productDoc.stock < product.quantity) {
-            return res.status(400).json({
-              message: `Insufficient stock for product: ${productDoc.name}`,
-            });
+
+          if (!productDoc) {
+            throw new Error(`Product not found: ${product.productId}`);
           }
 
-          productDoc.stock -= product.quantity;
-          await productDoc.save();
-        }
-      }
+          if (productDoc.stock > 0) {
+            if (productDoc.stock < product.quantity) {
+              throw new Error(
+                `Insufficient stock for product: ${productDoc.name}`
+              );
+            }
+            productDoc.stock -= product.quantity;
+            await productDoc.save();
+          }
+        })
+      );
     }
 
     const updatedDeal = await DealModel.findOneAndUpdate(
@@ -204,7 +218,7 @@ export const updateDeal = async (req, res) => {
       },
       {
         customerId: customerId || deal.customerId,
-        products: products || deal.products,
+        products: effectiveProducts,
         status: status || deal.status,
         updatedAt: new Date(),
       },
